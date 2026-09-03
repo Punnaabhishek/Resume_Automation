@@ -1,0 +1,16 @@
+Priya Raman
+priya.raman@example.com | +91 98400 00000 | Chennai, India
+
+Summary
+Senior Backend Engineer with 8 years of experience building and operating
+production APIs and data pipelines.
+
+Skills
+Node.js, TypeScript, MySQL, PostgreSQL, Docker, Kubernetes, AWS, Redis
+
+Experience
+Acme Technologies Pvt. Ltd. — Senior Backend Engineer (2021 - present)
+  Owned the billing and entitlements services.
+
+Globex Corporation — Backend Engineer (2018 - 2021)
+  Built the internal reporting API.

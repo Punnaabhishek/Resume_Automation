@@ -1,0 +1,34 @@
+# Local MySQL for development and for running the migration/seed against something real.
+#
+#   docker compose up -d
+#   npm run migrate && npm run seed
+#
+# Port 3307 on the host so this never collides with a MySQL already installed locally;
+# set DB_PORT=3307 in .env to match.
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: jobapply-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpw
+      MYSQL_DATABASE: job_apply_platform
+      MYSQL_USER: jobapply
+      MYSQL_PASSWORD: jobapply
+    ports:
+      - '3307:3306'
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - jobapply-mysql-data:/var/lib/mysql
+    healthcheck:
+      # Waits for the server to actually accept connections, not just for the port to open.
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-ujobapply', '-pjobapply']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  jobapply-mysql-data:

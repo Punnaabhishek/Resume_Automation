@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.env.local
+next-env.d.ts
+*.tsbuildinfo
+
+# Debug artifacts from failed browser tests.
+*-failure-*.png

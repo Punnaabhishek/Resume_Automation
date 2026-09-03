@@ -1,0 +1,67 @@
+{
+  "fullName": "Priya Raman",
+  "email": "priya.raman@example.com",
+  "phone": "+91 98400 00000",
+
+  "country": "IN",
+  "state": "Tamil Nadu",
+  "city": "Chennai",
+  "timezone": "Asia/Kolkata",
+
+  "targetDesignations": ["Senior Backend Engineer", "Backend Engineer"],
+  "keySkills": ["Node.js", "TypeScript", "MySQL", "Docker", "AWS"],
+
+  "servicePlan": "standard",
+  "intakeChannel": "whatsapp",
+
+  "dailyApplicationCap": 15,
+  "minMinutesBetweenApplications": 6,
+
+  "excludedCompanies": [
+    { "companyName": "Acme Technologies Pvt. Ltd.", "reason": "current_employer" },
+    { "companyName": "Globex Corporation", "reason": "personal" }
+  ],
+
+  "notes": "Prefers remote or Chennai. Not interested in support or QA roles.",
+
+  "consent": {
+    "version": "v1",
+    "capturedVia": "signed intake form over WhatsApp",
+    "evidenceRef": "wa://priya-raman/2026-09-03/consent.pdf"
+  },
+
+  "resumePath": "./priya-raman-resume.txt",
+
+  "portals": [
+    { "portal": "dice", "username": "priya.raman@example.com" },
+    { "portal": "linkedin", "username": "priya.raman@example.com" }
+  ],
+
+  "filters": [
+    {
+      "name": "Senior backend, remote or Chennai",
+      "designation": "Senior Backend Engineer",
+      "keywords": ["node.js", "typescript", "backend"],
+      "excludedKeywords": ["internship", "unpaid", "support engineer", "qa"],
+      "locations": ["Chennai", "Remote", "India"],
+      "remoteOnly": false,
+      "seniority": "senior",
+      "employmentTypes": ["full_time"],
+      "portals": ["dice", "linkedin"],
+      "postedWithinDays": 14,
+      "priority": 10
+    },
+    {
+      "name": "Platform / infra adjacent",
+      "designation": "Backend Engineer",
+      "keywords": ["platform", "infrastructure", "kubernetes"],
+      "excludedKeywords": ["internship"],
+      "locations": ["Remote", "India"],
+      "seniority": "mid",
+      "portals": ["dice"],
+      "priority": 0
+    }
+  ],
+
+  "queueRunsNow": false
+}

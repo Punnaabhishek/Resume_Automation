@@ -1,5 +1,20 @@
 node_modules/
-.next/
-.env.local
-next-env.d.ts
-*.tsbuildinfo
+dist/
+.env
+.env.*
+!.env.example
+storage/resumes/*
+!storage/resumes/.gitkeep
+storage/sessions/*
+!storage/sessions/.gitkeep
+storage/reports/*
+!storage/reports/.gitkeep
+*.log
+
+# Intake files hold real portal passwords until they are shredded.
+intake/*
+!intake/example.json
+!intake/*-resume.txt
+
+# Debug artifacts from failed browser tests.
+*-failure-*.png

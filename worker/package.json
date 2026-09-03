@@ -1,0 +1,30 @@
+{
+  "name": "job-apply-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Playwright automation service — claims runs from the API and applies to jobs",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "mock:serve": "tsx src/mock/serve.ts",
+    "e2e": "tsx src/mock/e2e.ts",
+    "typecheck": "tsc --noEmit",
+    "install:browsers": "playwright install chromium",
+    "e2e:dashboard": "tsx src/mock/dashboard-e2e.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.48.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
