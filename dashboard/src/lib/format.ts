@@ -32,17 +32,34 @@ export function relativeTime(value: string | null | undefined): string {
   return future ? `in ${rounded} ${unit}${plural}` : `${rounded} ${unit}${plural} ago`;
 }
 
+/**
+ * Always UTC, always labelled.
+ *
+ * Not a stylistic choice: the daily application cap resets on `UTC_DATE()` in the API, so an
+ * operator reading local time would see "how many are left today" disagree with what the
+ * server actually enforces. Every timestamp in this console is therefore UTC and says so.
+ */
 export function absoluteTime(value: string | null | undefined): string {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString(undefined, {
+  return `${date.toLocaleString('en-US', {
+    timeZone: 'UTC',
     year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  });
+    hour12: false,
+  })} UTC`;
+}
+
+/** Date only, UTC. For chart axes and anywhere a time of day would be noise. */
+export function utcDate(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
 }
 
 export function duration(from: string | null, to: string | null): string {

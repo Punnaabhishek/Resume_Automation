@@ -121,10 +121,10 @@ step('create a job seeker with an exclude list captured at intake', async () => 
     body: {
       fullName: 'E2E Seeker',
       email: `seeker-${suffix}@example.com`,
-      country: 'IN',
-      state: 'Tamil Nadu',
-      city: 'Chennai',
-      timezone: 'Asia/Kolkata',
+      country: 'US',
+      state: 'Texas',
+      city: 'Austin',
+      timezone: 'UTC',
       targetDesignations: ['Senior Backend Engineer'],
       keySkills: ['Node.js', 'MySQL'],
       intakeChannel: 'whatsapp',
@@ -175,7 +175,7 @@ step('record consents, then provisioning succeeds and returns no secret', async 
     'SELECT p.country FROM portal_connections pc JOIN proxies p ON p.id = pc.proxy_id WHERE pc.id = ?',
     [state.connectionId],
   );
-  if (proxy) assert.equal(proxy.country, 'IN');
+  if (proxy) assert.equal(proxy.country, 'US');
 });
 
 step('the stored password is ciphertext at rest', async () => {
@@ -215,7 +215,7 @@ step('no dashboard route exposes the password', async () => {
 step('upload and parse a resume', async () => {
   const resume = [
     'E2E Seeker',
-    'seeker@example.com | +91 90000 11111',
+    'seeker@example.com | +1 512 555 0142',
     '',
     'Summary',
     'Senior Backend Engineer with 9 years of experience.',
@@ -242,7 +242,7 @@ step('create a filter targeting linkedin', async () => {
       name: 'Backend',
       designation: 'Senior Backend Engineer',
       keywords: ['node.js', 'backend'],
-      locations: ['Chennai', 'Remote'],
+      locations: ['Austin', 'Remote'],
       seniority: 'senior',
       portals: ['linkedin'],
     },
@@ -340,7 +340,7 @@ step('recording an application is bot-confirmed and idempotent', async () => {
       portalJobId: 'li-1001',
       jobTitle: 'Senior Backend Engineer',
       company: 'Initech',
-      location: 'Chennai',
+      location: 'Austin, TX',
       filterId: state.filterId,
       resumeId: state.resumeId,
     },

@@ -239,10 +239,10 @@ export function startMockPortal(options: MockOptions): Promise<MockServer> {
 }
 
 export const SAMPLE_JOBS: MockJob[] = [
-  { id: 'mock-1', title: 'Senior Backend Engineer', company: 'Northwind Technologies Pvt. Ltd.', location: 'Remote — India', snippet: 'Node.js TypeScript MySQL' },
-  { id: 'mock-2', title: 'Backend Engineer', company: 'Contoso Corp', location: 'Bengaluru, India', snippet: 'Node.js distributed systems' },
-  { id: 'mock-3', title: 'Backend Engineer, Payments', company: 'Blocked Industries Inc', location: 'Remote — India', snippet: 'Node.js payments' },
-  { id: 'mock-4', title: 'Unpaid Backend Internship', company: 'Fabrikam', location: 'Remote — India', snippet: 'internship node.js' },
-  { id: 'mock-5', title: 'Backend Engineer, Platform', company: 'Tailwind Traders', location: 'Hyderabad, India', snippet: 'Node.js platform' },
-  { id: 'mock-6', title: 'Staff Backend Engineer', company: 'Adventure Works', location: 'Remote — India', snippet: 'Node.js architecture' },
+  { id: 'mock-1', title: 'Senior Backend Engineer', company: 'Northwind Technologies Inc.', location: 'Remote — United States', snippet: 'Node.js TypeScript MySQL' },
+  { id: 'mock-2', title: 'Backend Engineer', company: 'Contoso Corp', location: 'Austin, TX, United States', snippet: 'Node.js distributed systems' },
+  { id: 'mock-3', title: 'Backend Engineer, Payments', company: 'Blocked Industries Inc', location: 'Remote — United States', snippet: 'Node.js payments' },
+  { id: 'mock-4', title: 'Unpaid Backend Internship', company: 'Fabrikam', location: 'Remote — United States', snippet: 'internship node.js' },
+  { id: 'mock-5', title: 'Backend Engineer, Platform', company: 'Tailwind Traders', location: 'Denver, CO, United States', snippet: 'Node.js platform' },
+  { id: 'mock-6', title: 'Staff Backend Engineer', company: 'Adventure Works', location: 'Remote — United States', snippet: 'Node.js architecture' },
 ];

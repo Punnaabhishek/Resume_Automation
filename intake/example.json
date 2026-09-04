@@ -1,49 +1,47 @@
 {
-  "fullName": "Priya Raman",
-  "email": "priya.raman@example.com",
-  "phone": "+91 98400 00000",
+  "fullName": "Dana Whitfield",
+  "email": "dana.whitfield@example.com",
+  "phone": "+1 512 555 0142",
 
-  "country": "IN",
-  "state": "Tamil Nadu",
-  "city": "Chennai",
-  "timezone": "Asia/Kolkata",
+  "state": "Texas",
+  "city": "Austin",
 
   "targetDesignations": ["Senior Backend Engineer", "Backend Engineer"],
-  "keySkills": ["Node.js", "TypeScript", "MySQL", "Docker", "AWS"],
+  "keySkills": ["Node.js", "TypeScript", "PostgreSQL", "Docker", "AWS"],
 
   "servicePlan": "standard",
-  "intakeChannel": "whatsapp",
+  "intakeChannel": "phone",
 
   "dailyApplicationCap": 15,
   "minMinutesBetweenApplications": 6,
 
   "excludedCompanies": [
-    { "companyName": "Acme Technologies Pvt. Ltd.", "reason": "current_employer" },
-    { "companyName": "Globex Corporation", "reason": "personal" }
+    { "companyName": "Acme Corp", "reason": "current_employer" },
+    { "companyName": "Globex Inc", "reason": "personal" }
   ],
 
-  "notes": "Prefers remote or Chennai. Not interested in support or QA roles.",
+  "notes": "Prefers remote or Austin. Not interested in support or QA roles.",
 
   "consent": {
     "version": "v1",
-    "capturedVia": "signed intake form over WhatsApp",
-    "evidenceRef": "wa://priya-raman/2026-09-03/consent.pdf"
+    "capturedVia": "recorded intake call",
+    "evidenceRef": "drive://intake/2026-09-03/dana-whitfield-consent.pdf"
   },
 
-  "resumePath": "./priya-raman-resume.txt",
+  "resumePath": "./dana-whitfield-resume.txt",
 
   "portals": [
-    { "portal": "dice", "username": "priya.raman@example.com" },
-    { "portal": "linkedin", "username": "priya.raman@example.com" }
+    { "portal": "dice", "username": "dana.whitfield@example.com" },
+    { "portal": "linkedin", "username": "dana.whitfield@example.com" }
   ],
 
   "filters": [
     {
-      "name": "Senior backend, remote or Chennai",
+      "name": "Senior backend, remote or Austin",
       "designation": "Senior Backend Engineer",
       "keywords": ["node.js", "typescript", "backend"],
       "excludedKeywords": ["internship", "unpaid", "support engineer", "qa"],
-      "locations": ["Chennai", "Remote", "India"],
+      "locations": ["Remote", "Austin, TX"],
       "remoteOnly": false,
       "seniority": "senior",
       "employmentTypes": ["full_time"],
@@ -56,7 +54,7 @@
       "designation": "Backend Engineer",
       "keywords": ["platform", "infrastructure", "kubernetes"],
       "excludedKeywords": ["internship"],
-      "locations": ["Remote", "India"],
+      "locations": ["Remote"],
       "seniority": "mid",
       "portals": ["dice"],
       "priority": 0

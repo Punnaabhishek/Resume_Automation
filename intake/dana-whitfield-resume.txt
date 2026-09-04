@@ -1,0 +1,16 @@
+Dana Whitfield
+dana.whitfield@example.com | +1 512 555 0142 | Austin, TX
+
+Summary
+Senior Backend Engineer with 8 years of experience building and operating
+production APIs and data pipelines.
+
+Skills
+Node.js, TypeScript, PostgreSQL, MySQL, Docker, Kubernetes, AWS, Redis
+
+Experience
+Acme Corp - Senior Backend Engineer (2021 - present)
+  Owned the billing and entitlements services.
+
+Globex Inc - Backend Engineer (2018 - 2021)
+  Built the internal reporting API.

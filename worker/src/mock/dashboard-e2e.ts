@@ -73,9 +73,9 @@ step('provision a job seeker ready to be automated', async () => {
   const user = await call('POST', '/users', {
     fullName: seekerName,
     email: seekerEmail,
-    country: 'IN',
-    city: 'Chennai',
-    timezone: 'Asia/Kolkata',
+    country: 'US',
+    city: 'Austin',
+    timezone: 'UTC',
     targetDesignations: ['Senior Backend Engineer'],
     keySkills: ['Node.js'],
     intakeChannel: 'whatsapp',
@@ -112,7 +112,7 @@ step('provision a job seeker ready to be automated', async () => {
     name: 'Backend',
     designation: 'Senior Backend Engineer',
     keywords: ['node.js', 'backend'],
-    locations: ['India'],
+    locations: ['United States'],
     seniority: 'senior',
     portals: ['dice'],
   });

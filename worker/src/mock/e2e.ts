@@ -84,10 +84,10 @@ step('provision a job seeker with an exclude list and consents', async () => {
   const user = await call('POST', '/users', {
     fullName: 'Worker E2E Seeker',
     email: seekerEmail,
-    country: 'IN',
-    state: 'Tamil Nadu',
-    city: 'Chennai',
-    timezone: 'Asia/Kolkata',
+    country: 'US',
+    state: 'Texas',
+    city: 'Austin',
+    timezone: 'UTC',
     targetDesignations: ['Senior Backend Engineer'],
     keySkills: ['Node.js'],
     intakeChannel: 'whatsapp',
@@ -127,7 +127,7 @@ step('upload a resume', async () => {
   // need a real path on disk to hand to the portal's file input.
   const resume = [
     'Worker E2E Seeker',
-    `${seekerEmail} | +91 90000 11111`,
+    `${seekerEmail} | +1 512 555 0142`,
     '',
     'Summary',
     'Senior Backend Engineer with 9 years of experience.',
@@ -150,7 +150,7 @@ step('create a filter and activate the user', async () => {
     designation: 'Senior Backend Engineer',
     keywords: ['node.js', 'backend'],
     excludedKeywords: ['internship'],
-    locations: ['India'],
+    locations: ['United States'],
     seniority: 'senior',
     portals: ['dice'],
   });

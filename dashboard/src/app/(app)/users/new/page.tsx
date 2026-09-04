@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ApiError, api } from '@/lib/api';
 import type { ConsentType, Portal } from '@/lib/types';
 import { ErrorBanner, Panel, Pill } from '@/components/ui';
+import { COMMON_LOCATIONS, COUNTRY, COUNTRY_LABEL, TIMEZONE, US_STATES } from '@/lib/region';
 
 /**
  * Intake, in order, in one screen.
@@ -65,10 +66,9 @@ export default function NewUserPage() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [country, setCountry] = useState('IN');
+  // Country and timezone are platform policy, not per-person settings — see lib/region.ts.
   const [stateRegion, setStateRegion] = useState('');
   const [city, setCity] = useState('');
-  const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [designations, setDesignations] = useState('');
   const [skills, setSkills] = useState('');
   const [dailyCap, setDailyCap] = useState('15');
@@ -129,10 +129,10 @@ export default function NewUserPage() {
         fullName: fullName.trim(),
         email: email.trim(),
         phone: phone.trim() || undefined,
-        country: country.trim().toUpperCase(),
-        state: stateRegion.trim() || undefined,
+        country: COUNTRY,
+        state: stateRegion || undefined,
         city: city.trim() || undefined,
-        timezone: timezone.trim() || 'UTC',
+        timezone: TIMEZONE,
         targetDesignations: splitList(designations),
         keySkills: splitList(skills),
         intakeChannel: 'form',
@@ -263,20 +263,33 @@ export default function NewUserPage() {
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} />
               </label>
               <label className="field">
-                Country (2 letters)
-                <input value={country} onChange={(e) => setCountry(e.target.value)} maxLength={2} required />
+                Country
+                <span className="fixed-value">
+                  {COUNTRY_LABEL}
+                  <span className="fixed-note">US-only platform</span>
+                </span>
               </label>
               <label className="field">
-                State / region
-                <input value={stateRegion} onChange={(e) => setStateRegion(e.target.value)} />
+                State
+                <select value={stateRegion} onChange={(e) => setStateRegion(e.target.value)}>
+                  <option value="">Select a state…</option>
+                  {US_STATES.map((s) => (
+                    <option key={s.code} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="field">
                 City
-                <input value={city} onChange={(e) => setCity(e.target.value)} />
+                <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Austin" />
               </label>
               <label className="field">
                 Timezone
-                <input value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+                <span className="fixed-value">
+                  {TIMEZONE}
+                  <span className="fixed-note">Caps reset on UTC midnight</span>
+                </span>
               </label>
               <label className="field">
                 Daily application cap
@@ -313,7 +326,7 @@ export default function NewUserPage() {
               <input
                 value={excluded}
                 onChange={(e) => setExcluded(e.target.value)}
-                placeholder="Acme Technologies Pvt. Ltd., Globex Corporation"
+                placeholder="Acme Corp, Globex Inc"
               />
             </label>
             <label className="field">
@@ -565,9 +578,32 @@ export default function NewUserPage() {
               <input
                 value={filterLocations}
                 onChange={(e) => setFilterLocations(e.target.value)}
-                placeholder="Chennai, Remote, India"
+                placeholder="Remote, New York NY, Austin TX"
               />
             </label>
+            <div className="chips">
+              {COMMON_LOCATIONS.map((place) => {
+                const already = splitList(filterLocations).includes(place);
+                return (
+                  <button
+                    type="button"
+                    key={place}
+                    className="chip-btn"
+                    aria-pressed={already}
+                    onClick={() =>
+                      setFilterLocations((prev) => {
+                        const parts = splitList(prev);
+                        const next = already ? parts.filter((p) => p !== place) : [...parts, place];
+                        return next.join(', ');
+                      })
+                    }
+                  >
+                    {already ? '✓ ' : '+ '}
+                    {place}
+                  </button>
+                );
+              })}
+            </div>
 
             <label className="field">
               Portals to search

@@ -1,3 +1,4 @@
 screenshots/
 node_modules/
 .env
+ui-*.png

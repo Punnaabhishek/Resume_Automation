@@ -25,15 +25,55 @@ const VIEWPORT = { width: 1440, height: 900 };
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-function localeFor(country: string | null | undefined): { locale: string; timezoneId?: string } {
-  switch ((country ?? '').toUpperCase()) {
-    case 'IN':
-      return { locale: 'en-IN', timezoneId: 'Asia/Kolkata' };
-    case 'GB':
-      return { locale: 'en-GB', timezoneId: 'Europe/London' };
-    default:
-      return { locale: 'en-US' };
-  }
+/**
+ * The platform is US-only, so the browser presents as a US client.
+ *
+ * The timezone is deliberately a real US zone rather than UTC: a browser reporting UTC from a
+ * residential US IP is an obvious mismatch, and portal anti-abuse checks look at exactly that
+ * pairing. UTC is how *we* store and reason about time; it is not what the browser should
+ * claim to be. If a proxy region is known, its zone is used so the two agree.
+ */
+const US_ZONE_BY_REGION: Record<string, string> = {
+  CA: 'America/Los_Angeles',
+  WA: 'America/Los_Angeles',
+  OR: 'America/Los_Angeles',
+  NV: 'America/Los_Angeles',
+  CO: 'America/Denver',
+  UT: 'America/Denver',
+  AZ: 'America/Phoenix',
+  TX: 'America/Chicago',
+  IL: 'America/Chicago',
+  MN: 'America/Chicago',
+  MO: 'America/Chicago',
+  GA: 'America/New_York',
+  FL: 'America/New_York',
+  NY: 'America/New_York',
+  NJ: 'America/New_York',
+  MA: 'America/New_York',
+  PA: 'America/New_York',
+  NC: 'America/New_York',
+  VA: 'America/New_York',
+  DC: 'America/New_York',
+};
+
+/** Intake stores full state names ("Texas"); this map is keyed by code, so translate. */
+const STATE_CODES: Record<string, string> = {
+  california: 'CA', washington: 'WA', oregon: 'OR', nevada: 'NV', colorado: 'CO',
+  utah: 'UT', arizona: 'AZ', texas: 'TX', illinois: 'IL', minnesota: 'MN',
+  missouri: 'MO', georgia: 'GA', florida: 'FL', 'new york': 'NY', 'new jersey': 'NJ',
+  massachusetts: 'MA', pennsylvania: 'PA', 'north carolina': 'NC', virginia: 'VA',
+  'district of columbia': 'DC',
+};
+
+function stateCode(state: string | null | undefined): string {
+  const raw = (state ?? '').trim();
+  if (raw.length === 2) return raw.toUpperCase();
+  return STATE_CODES[raw.toLowerCase()] ?? '';
+}
+
+function localeFor(region: string | null | undefined): { locale: string; timezoneId: string } {
+  const key = (region ?? '').trim().toUpperCase();
+  return { locale: 'en-US', timezoneId: US_ZONE_BY_REGION[key] ?? 'America/New_York' };
 }
 
 async function loadStorageState(ctx: RunContext): Promise<unknown | undefined> {
@@ -55,7 +95,7 @@ async function loadStorageState(ctx: RunContext): Promise<unknown | undefined> {
 
 export async function openSession(ctx: RunContext, proxyPassword?: string): Promise<Session> {
   const storageState = await loadStorageState(ctx);
-  const { locale, timezoneId } = localeFor(ctx.user.country);
+  const { locale, timezoneId } = localeFor(stateCode(ctx.user.state));
 
   const proxy = ctx.connection.proxy
     ? {

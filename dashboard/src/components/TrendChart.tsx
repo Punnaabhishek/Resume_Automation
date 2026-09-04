@@ -44,7 +44,9 @@ function shortLabel(bucket: string): string {
   if (/^\d{4}-W\d+$/.test(bucket)) return `W${bucket.split('-W')[1]}`;
   const date = new Date(bucket);
   if (Number.isNaN(date.getTime())) return bucket;
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  // UTC: the API buckets on DATE(applied_at) in UTC, so rendering in local time would shift
+  // points into the wrong day near midnight.
+  return date.toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
 }
 
 export function TrendChart({ trend, title }: { trend: Trend; title?: string }) {

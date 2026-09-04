@@ -25,6 +25,23 @@ verification prompt, clears it by typing a code into the dashboard UI with a rea
 and asserts the worker picks it up and applies. That is the one path no single-service test
 can cover, and it is the reason the dashboard exists.
 
+## Region and time
+
+**The platform is US-only and runs on UTC.** Both are policy rather than per-person settings,
+and both are load-bearing:
+
+- The daily application cap resets on `UTC_DATE()` in the API. Every timestamp the ops
+  console shows is therefore rendered in UTC and labelled as such — a local-time clock would
+  make "how many are left today" disagree with what the server actually enforces.
+- Proxy auto-assignment matches on the job seeker's country. A record created with any other
+  country is provisioned with no proxy and egresses from the worker host directly, which is
+  the fastest way to get an account flagged.
+
+Country and timezone are fixed in the intake form rather than typed, and the intake script
+overrides whatever an intake file says. The worker is the one place that does *not* use UTC:
+its browser reports a real US zone derived from the job seeker's state, because a browser
+claiming UTC from a residential US IP is exactly the mismatch portal anti-abuse looks for.
+
 ## What this is built around
 
 The spec's revised architecture is fully managed: job seekers never log in, don't approve

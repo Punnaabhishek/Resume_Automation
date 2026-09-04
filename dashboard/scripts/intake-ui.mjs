@@ -34,6 +34,33 @@ const PORTAL_PASSWORD = 'ui-intake-p@ss-9931';
 
 let browser;
 let page;
+/**
+ * One operator token for the whole run.
+ *
+ * /auth/login is rate-limited on a 15-minute window, so a script that signs in per assertion
+ * locks itself out on the second or third run — which surfaces as an unrelated-looking
+ * assertion failure further down. Sign in once, reuse it.
+ */
+let opsToken = '';
+
+async function opsFetch(route, init = {}) {
+  if (!opsToken) {
+    const res = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: OPS_EMAIL, password: OPS_PASSWORD }),
+    });
+    const body = await res.json();
+    if (!res.ok || !body.token) {
+      throw new Error(`operator sign-in failed (${res.status}): ${JSON.stringify(body)}`);
+    }
+    opsToken = body.token;
+  }
+  return fetch(`${API}${route}`, {
+    ...init,
+    headers: { ...(init.headers ?? {}), authorization: `Bearer ${opsToken}` },
+  });
+}
 let resumePath;
 let userId = '';
 
@@ -87,14 +114,33 @@ check('stage 1 saves the profile', async () => {
     [
       ['.field:has-text("Full name") input', seekerName],
       ['.field:has-text("Email") input', seekerEmail],
-      ['.field:has-text("Phone") input', '+91 98400 12345'],
-      ['.field:has-text("City") input', 'Chennai'],
-      ['.field:has-text("State / region") input', 'Tamil Nadu'],
+      ['.field:has-text("Phone") input', '+1 512 555 0142'],
+      ['.field:has-text("City") input', 'Austin'],
       ['.field:has-text("Target roles") input', 'Senior Backend Engineer, Backend Engineer'],
       ['.field:has-text("Key skills") input', 'Node.js, TypeScript, MySQL'],
       ['.field:has-text("Companies never to apply to") input', 'Blocked Industries Inc'],
     ],
     'button:has-text("Save and continue"):not([disabled])',
+  );
+
+  // State is a dropdown now that the platform is US-only, so it is selected, not typed.
+  await page.selectOption('.field:has-text("State") select', 'Texas');
+
+  // Country and timezone are fixed by policy — assert they are shown as settled facts
+  // rather than as inputs an operator could put a non-US value into.
+  const fixed = await page.locator('.fixed-value').allTextContents();
+  assert.ok(
+    fixed.some((t) => /United States/.test(t)),
+    `country is not pinned to the US: ${fixed.join(' | ')}`,
+  );
+  assert.ok(
+    fixed.some((t) => /UTC/.test(t)),
+    `timezone is not pinned to UTC: ${fixed.join(' | ')}`,
+  );
+  assert.equal(
+    await page.locator('.field:has-text("Country") input').count(),
+    0,
+    'country is still an editable input',
   );
 
   await page.click('button:has-text("Save and continue")');
@@ -147,7 +193,7 @@ check('stage 4 encrypts a portal password without ever echoing it', async () => 
 
 check('stage 5 creates a filter and activates them', async () => {
   await page.fill('.field:has-text("Keywords") input', 'node.js, backend');
-  await page.fill('.field:has-text("Locations") input', 'Chennai, Remote, India');
+  await page.fill('.field:has-text("Locations") input', 'Remote, Austin, TX');
   await page.selectOption('.field:has-text("Seniority") select', 'senior');
 
   // dice was pre-ticked from the saved credential; confirm rather than assume.
@@ -205,30 +251,16 @@ check('the reporting tab renders without error', async () => {
 
 check('the automation is genuinely runnable for them', async () => {
   // The real proof: the API agrees they are eligible, which is what the worker checks.
-  const login = await fetch(`${API}/auth/login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: OPS_EMAIL, password: OPS_PASSWORD }),
-  }).then((r) => r.json());
-
-  const res = await fetch(`${API}/runs/eligibility?userId=${userId}&portal=dice`, {
-    headers: { authorization: `Bearer ${login.token}` },
-  }).then((r) => r.json());
+  const res = await opsFetch(`/runs/eligibility?userId=${userId}&portal=dice`).then((r) => r.json());
 
   assert.equal(res.eligible, true, `not eligible after a full UI intake: ${JSON.stringify(res.reasons)}`);
   assert.ok(res.remainingToday > 0, 'no application budget remaining');
 });
 
 check('clean up the fixture', async () => {
-  const login = await fetch(`${API}/auth/login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ email: OPS_EMAIL, password: OPS_PASSWORD }),
-  }).then((r) => r.json());
-
-  const res = await fetch(`${API}/users/${userId}`, {
+  const res = await opsFetch(`/users/${userId}`, {
     method: 'PATCH',
-    headers: { authorization: `Bearer ${login.token}`, 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ status: 'offboarded' }),
   });
   assert.equal(res.status, 200, 'could not offboard the test record');

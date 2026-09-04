@@ -49,10 +49,10 @@ async function seed(): Promise<void> {
          (id, org_id, full_name, email, phone, country, state, city, timezone,
           target_designations, key_skills, status, service_plan, intake_channel,
           intake_completed_at, daily_application_cap, min_minutes_between_applications)
-       VALUES (?, ?, ?, ?, ?, 'IN', 'Tamil Nadu', 'Chennai', 'Asia/Kolkata', ?, ?, 'active', 'standard', 'form',
+       VALUES (?, ?, ?, ?, ?, 'US', 'Texas', 'Austin', 'UTC', ?, ?, 'active', 'standard', 'form',
                NOW(3), 20, 5)`,
       [
-        id, org.id, 'Demo Job Seeker', SEEKER_EMAIL, '+91-90000-00000',
+        id, org.id, 'Demo Job Seeker', SEEKER_EMAIL, '+1-512-555-0100',
         JSON.stringify(['Senior Backend Engineer', 'Node.js Developer']),
         JSON.stringify(['Node.js', 'TypeScript', 'MySQL', 'Azure', 'Docker']),
       ],
@@ -96,15 +96,15 @@ async function seed(): Promise<void> {
 
   const existingProxy = await queryOne<RowDataPacket>('SELECT id FROM proxies WHERE org_id = ? AND label = ?', [
     org.id,
-    'IN-Chennai-1',
+    'US-Austin-1',
   ]);
   if (!existingProxy) {
     await execute(
       `INSERT INTO proxies (id, org_id, label, provider, kind, country, region, host, port, username, max_assignments)
-       VALUES (?, ?, 'IN-Chennai-1', 'example-provider', 'residential', 'IN', 'Tamil Nadu', 'proxy.example.test', 8000, 'demo', 3)`,
+       VALUES (?, ?, 'US-Austin-1', 'example-provider', 'residential', 'US', 'Texas', 'proxy.example.test', 8000, 'demo', 3)`,
       [newId(), org.id],
     );
-    console.log('proxy         IN-Chennai-1');
+    console.log('proxy         US-Austin-1');
   }
 
   console.log('\nSeed complete.');

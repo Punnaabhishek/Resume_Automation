@@ -25,6 +25,10 @@ const API = (process.env.INTAKE_API_BASE_URL ?? `http://localhost:${process.env.
 const OPS_EMAIL = process.env.INTAKE_OPS_EMAIL;
 const OPS_PASSWORD = process.env.INTAKE_OPS_PASSWORD;
 
+/** The platform runs US-only on UTC. Not configurable per job seeker. */
+const COUNTRY = 'US';
+const TIMEZONE = 'UTC';
+
 const DRY_RUN = process.argv.includes('--dry-run');
 const filePath = process.argv.find((a) => a.endsWith('.json'));
 
@@ -55,9 +59,11 @@ interface IntakeFile {
   fullName: string;
   email: string;
   phone?: string;
-  country: string;
+  /** Ignored — the platform is US-only. Present so old files still parse. */
+  country?: string;
   state?: string;
   city?: string;
+  /** Ignored — everything runs on UTC. */
   timezone?: string;
   targetDesignations: string[];
   keySkills?: string[];
@@ -126,7 +132,7 @@ async function main(): Promise<void> {
 
   const data = JSON.parse(fs.readFileSync(resolved, 'utf8')) as IntakeFile;
 
-  for (const required of ['fullName', 'email', 'country', 'targetDesignations', 'consent', 'resumePath', 'portals', 'filters'] as const) {
+  for (const required of ['fullName', 'email', 'targetDesignations', 'consent', 'resumePath', 'portals', 'filters'] as const) {
     if (data[required] === undefined) fail(`Intake file is missing "${required}"`);
   }
 
@@ -136,8 +142,14 @@ async function main(): Promise<void> {
   console.log(`\nIntake: ${data.fullName} <${data.email}>`);
   console.log(`API:    ${API}`);
   console.log(`Resume: ${resumeAbs}`);
+  console.log(`Region: ${COUNTRY} / ${TIMEZONE}`);
   console.log(`Portals: ${data.portals.map((p) => p.portal).join(', ')}`);
   console.log(`Filters: ${data.filters.length}`);
+
+  if (data.country && data.country.toUpperCase() !== COUNTRY) {
+    console.log(`
+  Note: this file says country "${data.country}", but the platform is ${COUNTRY}-only. Using ${COUNTRY}.`);
+  }
 
   if (DRY_RUN) {
     console.log('\n  --dry-run: the file parses and the resume exists. Nothing was sent.\n');
@@ -174,10 +186,13 @@ async function main(): Promise<void> {
     fullName: data.fullName,
     email: data.email,
     phone: data.phone,
-    country: data.country,
+    // US-only, UTC-only: both are platform policy, so an intake file cannot override them.
+    // The daily cap resets on UTC_DATE() server-side and proxy auto-assignment matches on
+    // country, so a stray value here would silently produce an unproxied account.
+    country: COUNTRY,
     state: data.state,
     city: data.city,
-    timezone: data.timezone ?? 'UTC',
+    timezone: TIMEZONE,
     targetDesignations: data.targetDesignations,
     keySkills: data.keySkills ?? [],
     servicePlan: data.servicePlan,
