@@ -28,6 +28,21 @@ import { env } from '../../config/env';
 import * as audit from '../audit/audit.service';
 import * as credentials from '../credentials/credentials.service';
 import { checkEligibility, claimNext, type Portal } from '../runs/runs.service';
+import { MIN_ALLOWED_MATCH_SCORE, scoreMatch, thresholdFor } from '../../services/matching';
+
+/** users.key_skills and target_designations are JSON columns; mysql2 may hand back either. */
+function asStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v));
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v));
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 interface RunRow extends RowDataPacket {
   id: string;
@@ -86,9 +101,10 @@ workerRouter.get(
 
     const [user, connection, resume, filters, excluded, appliedIds] = await Promise.all([
       queryOne<RowDataPacket>(
-        `SELECT id, full_name, email, phone, country, state, city, timezone,
+        `SELECT id, full_name, first_name, middle_name, last_name, email, phone,
+                country, state, city, timezone,
                 target_designations, key_skills, daily_application_cap,
-                min_minutes_between_applications
+                min_minutes_between_applications, min_match_score
            FROM users WHERE id = ?`,
         [run.user_id],
       ),
@@ -102,7 +118,7 @@ workerRouter.get(
         [run.connection_id],
       ),
       queryOne<RowDataPacket>(
-        `SELECT id, file_name, mime_type, storage_path, parsed
+        `SELECT id, file_name, mime_type, storage_path, parsed, raw_text
            FROM resumes WHERE user_id = ? ORDER BY is_primary DESC, created_at DESC LIMIT 1`,
         [run.user_id],
       ),
@@ -150,6 +166,8 @@ workerRouter.get(
             mimeType: resume.mime_type,
             absolutePath: path.join(env.storage.root, resume.storage_path as string),
             parsed: resume.parsed,
+            /** The prose the matcher scores against. Without it nothing can be scored. */
+            rawText: resume.raw_text ?? '',
           }
         : null,
       filters,
@@ -159,6 +177,14 @@ workerRouter.get(
       budget: {
         remainingToday: eligibility.remainingToday,
         minMinutesBetweenApplications: user?.min_minutes_between_applications ?? env.pacing.defaultMinMinutesBetween,
+      },
+      /**
+       * The bar this run must clear. The worker uses it to avoid opening applications it
+       * would only have thrown away; the API re-checks it at the write regardless.
+       */
+      matching: {
+        threshold: thresholdFor(user?.min_match_score),
+        minAllowed: MIN_ALLOWED_MATCH_SCORE,
       },
     });
   }),
@@ -242,6 +268,16 @@ const applicationSchema = z.object({
   filterId: z.string().uuid().optional(),
   resumeId: z.string().uuid().optional(),
   appliedAt: z.coerce.date().optional(),
+  /**
+   * The job's own description, as read from its page. Required, because the score is
+   * recomputed here rather than trusted: the worker's score decides whether to open an
+   * application at all, but this is the write that matters. A worker that scored generously —
+   * through a bug, a stale build, or a selector returning an empty page — must not be able to
+   * get a weak match into the record.
+   */
+  jobDescription: z.string().max(60_000).optional(),
+  /** What the worker scored it. Advisory; stored only if it agrees with our own. */
+  matchScore: z.number().int().min(0).max(100).optional(),
 });
 
 /**
@@ -268,6 +304,56 @@ workerRouter.post(
       });
     }
 
+    // --- match score, recomputed here rather than trusted ---------------------------------
+    const scoring = await queryOne<
+      RowDataPacket & {
+        min_match_score: number;
+        key_skills: unknown;
+        target_designations: unknown;
+        raw_text: string | null;
+        parsed: { skills?: string[]; yearsExperience?: number | null } | null;
+      }
+    >(
+      `SELECT u.min_match_score, u.key_skills, u.target_designations,
+              r.raw_text, r.parsed
+         FROM users u
+         LEFT JOIN resumes r ON r.user_id = u.id AND r.is_primary = 1
+        WHERE u.id = ?
+        ORDER BY r.created_at DESC
+        LIMIT 1`,
+      [run.user_id],
+    );
+
+    const threshold = thresholdFor(scoring?.min_match_score);
+    const verdict = scoreMatch(
+      {
+        rawText: scoring?.raw_text ?? '',
+        skills: asStringArray(scoring?.parsed?.skills ?? scoring?.key_skills),
+        yearsExperience: scoring?.parsed?.yearsExperience ?? null,
+        targetDesignations: asStringArray(scoring?.target_designations),
+      },
+      {
+        title: input.jobTitle,
+        company: input.company,
+        location: input.location ?? null,
+        description: input.jobDescription ?? '',
+      },
+    );
+
+    if (verdict.score < threshold) {
+      throw conflict(
+        verdict.unscorable
+          ? `Could not judge this posting against the resume: ${verdict.unscorable}`
+          : `Match score ${verdict.score} is below this user's threshold of ${threshold}; the application should not have been sent`,
+        {
+          score: verdict.score,
+          threshold,
+          workerScore: input.matchScore ?? null,
+          missingSkills: verdict.missingSkills,
+        },
+      );
+    }
+
     const result = await withTransaction(async (tx) => {
       const [capRows] = await tx.query<(RowDataPacket & { cap: number; used: number })[]>(
         `SELECT u.daily_application_cap AS cap,
@@ -283,11 +369,20 @@ workerRouter.post(
       const id = newId();
       const [insert] = await tx.execute<import('mysql2/promise').ResultSetHeader>(
         `INSERT IGNORE INTO applications
-           (id, user_id, run_id, filter_id, resume_id, portal, portal_job_id, job_title, company,
+           (id, user_id, run_id, filter_id, resume_id, match_score, match_breakdown,
+            portal, portal_job_id, job_title, company,
             company_normalized, location, job_url, applied_at, status, status_source)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'applied', 'bot_confirmed')`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'applied', 'bot_confirmed')`,
         [
-          id, run.user_id, run.id, input.filterId ?? null, input.resumeId ?? null, run.portal,
+          id, run.user_id, run.id, input.filterId ?? null, input.resumeId ?? null,
+          verdict.score,
+          JSON.stringify({
+            threshold,
+            components: verdict.components,
+            matchedSkills: verdict.matchedSkills,
+            missingSkills: verdict.missingSkills,
+          }),
+          run.portal,
           input.portalJobId, input.jobTitle, input.company, normalized,
           input.location ?? null, input.jobUrl ?? null, input.appliedAt ?? new Date(),
         ],
@@ -316,7 +411,7 @@ workerRouter.post(
         metadata: { portal: run.portal, company: input.company, jobTitle: input.jobTitle, runId: run.id },
       });
 
-      return { id };
+      return { id, score: verdict.score };
     });
 
     if ('capped' in result) {
@@ -326,7 +421,7 @@ workerRouter.post(
       res.status(200).json({ duplicate: true });
       return;
     }
-    res.status(201).json({ id: result.id });
+    res.status(201).json({ id: result.id, matchScore: result.score, threshold });
   }),
 );
 
@@ -498,6 +593,9 @@ workerRouter.post(
       jobsMatched: z.number().int().min(0).default(0),
       jobsSkippedExcluded: z.number().int().min(0).default(0),
       jobsSkippedDuplicate: z.number().int().min(0).default(0),
+      jobsScored: z.number().int().min(0).default(0),
+      jobsBelowThreshold: z.number().int().min(0).default(0),
+      bestScoreMissed: z.number().int().min(0).max(100).optional(),
       errorMessage: z.string().max(2000).optional(),
     });
     const input = parse(schema, req.body);
@@ -505,11 +603,13 @@ workerRouter.post(
     await execute(
       `UPDATE automation_runs
           SET status = ?, jobs_seen = ?, jobs_matched = ?, jobs_skipped_excluded = ?,
-              jobs_skipped_duplicate = ?, error_message = ?, finished_at = NOW(3)
+              jobs_skipped_duplicate = ?, jobs_scored = ?, jobs_below_threshold = ?,
+              best_score_missed = ?, error_message = ?, finished_at = NOW(3)
         WHERE id = ?`,
       [
         input.status, input.jobsSeen, input.jobsMatched, input.jobsSkippedExcluded,
-        input.jobsSkippedDuplicate, input.errorMessage ?? null, run.id,
+        input.jobsSkippedDuplicate, input.jobsScored, input.jobsBelowThreshold,
+        input.bestScoreMissed ?? null, input.errorMessage ?? null, run.id,
       ],
     );
 

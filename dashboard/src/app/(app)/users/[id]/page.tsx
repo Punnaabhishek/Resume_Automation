@@ -21,6 +21,7 @@ import {
   SourcePill,
   Tile,
   UserStatusPill,
+  MatchScore,
 } from '@/components/ui';
 import { BreakdownBars, TrendChart } from '@/components/TrendChart';
 import {
@@ -245,6 +246,8 @@ export default function UserDetailPage() {
                       <th>Portal</th>
                       <th>Status</th>
                       <th className="num">Applied</th>
+                      <th className="num">Scored</th>
+                      <th className="num">Below bar</th>
                       <th className="num">Seen</th>
                       <th>Trigger</th>
                       <th>Worker</th>
@@ -264,6 +267,17 @@ export default function UserDetailPage() {
                           </div>
                         </td>
                         <td className="num">{run.counters.applicationsSubmitted}</td>
+                        <td className="num">{run.counters.jobsScored}</td>
+                        <td
+                          className="num"
+                          title={
+                            run.counters.bestScoreMissed
+                              ? `Closest miss scored ${run.counters.bestScoreMissed}`
+                              : undefined
+                          }
+                        >
+                          {run.counters.jobsBelowThreshold}
+                        </td>
                         <td className="num">{run.counters.jobsSeen}</td>
                         <td className="tight">{humanize(run.triggerSource)}</td>
                         <td className="tight">{run.workerId ?? '—'}</td>
@@ -299,6 +313,7 @@ export default function UserDetailPage() {
                       <th>Job</th>
                       <th>Company</th>
                       <th>Portal</th>
+                      <th>Match</th>
                       <th>Status</th>
                       <th>Source</th>
                       <th>Applied</th>
@@ -319,6 +334,9 @@ export default function UserDetailPage() {
                         <td>{row.company}</td>
                         <td className="tight">
                           <PortalPill portal={row.portal} />
+                        </td>
+                        <td className="tight">
+                          <MatchScore score={row.matchScore} breakdown={row.matchBreakdown} />
                         </td>
                         <td className="tight">
                           <ApplicationStatusPill status={row.status} />

@@ -70,11 +70,21 @@ export interface RunContext {
     sessionStatePath: string | null;
     proxy: { host: string; port: number; username: string | null; credentialId: string | null; country: string | null } | null;
   };
-  resume: { id: string; fileName: string; mimeType: string; absolutePath: string; parsed: unknown } | null;
+  resume: {
+    id: string;
+    fileName: string;
+    mimeType: string;
+    absolutePath: string;
+    parsed: { skills?: string[]; yearsExperience?: number | null } | null;
+    /** Full resume prose. Without it nothing can be scored and every job is skipped. */
+    rawText: string;
+  } | null;
   filters: JobFilter[];
   excludedCompanies: string[];
   alreadyAppliedJobIds: string[];
   budget: { remainingToday: number; minMinutesBetweenApplications: number };
+  /** The bar this run must clear. The API re-checks it at the write regardless. */
+  matching: { threshold: number; minAllowed: number };
 }
 
 export interface JobFilter {
@@ -102,6 +112,9 @@ export interface ApplicationInput {
   filterId?: string;
   resumeId?: string;
   appliedAt?: string;
+  /** The posting we scored. The API rescores from this rather than trusting matchScore. */
+  jobDescription?: string;
+  matchScore?: number;
 }
 
 export type ExceptionType =
@@ -118,6 +131,9 @@ export interface FinishInput {
   jobsMatched?: number;
   jobsSkippedExcluded?: number;
   jobsSkippedDuplicate?: number;
+  jobsScored?: number;
+  jobsBelowThreshold?: number;
+  bestScoreMissed?: number;
   errorMessage?: string;
 }
 
@@ -152,14 +168,17 @@ export const api = {
   },
 
   /** Returns null when the API reports the job as an already-recorded duplicate. */
-  async recordApplication(runId: string, input: ApplicationInput): Promise<{ id: string } | null> {
-    const res = await call<{ id?: string; duplicate?: boolean }>(
+  async recordApplication(
+    runId: string,
+    input: ApplicationInput,
+  ): Promise<{ id: string; matchScore: number } | null> {
+    const res = await call<{ id?: string; duplicate?: boolean; matchScore?: number }>(
       'POST',
       `/worker/runs/${runId}/applications`,
       input,
     );
     if (res.body?.duplicate) return null;
-    return { id: res.body.id! };
+    return { id: res.body.id!, matchScore: res.body.matchScore ?? 0 };
   },
 
   async statusSync(

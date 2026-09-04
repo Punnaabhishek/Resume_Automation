@@ -66,6 +66,25 @@ async function call<T = any>(
   return { status: res.status, body };
 }
 
+
+/**
+ * A posting that genuinely matches the résumé fixture. Applications now carry a match score
+ * that the API recomputes at the write, so a worker call without a real description scores
+ * zero and is refused — which is the point of the feature, and means every application in
+ * this suite has to look like a real one.
+ */
+const MATCHING_DESCRIPTION = [
+  'We are hiring a Senior Backend Engineer to own our core services platform.',
+  'You will design, build and operate production APIs serving millions of requests a day.',
+  'Responsibilities: build and maintain backend services in Node.js and TypeScript;',
+  'model and evolve data in MySQL; deploy and operate services with Docker on AWS;',
+  'build REST APIs for web and mobile clients; mentor engineers and lead technical',
+  'design for distributed systems. Requirements: 5+ years of professional backend',
+  'engineering experience, deep knowledge of Node.js, TypeScript and relational',
+  'databases, production experience with Docker and AWS, and a strong grounding in',
+  'microservices and distributed systems architecture.',
+].join(' ');
+
 const steps: { name: string; run: () => Promise<void> }[] = [];
 const step = (name: string, run: () => Promise<void>) => steps.push({ name, run });
 
@@ -213,15 +232,30 @@ step('no dashboard route exposes the password', async () => {
 });
 
 step('upload and parse a resume', async () => {
+  // Substantial on purpose: the matcher refuses to score a document under 200 characters,
+  // so a stub here would make every application in this suite score zero and be refused —
+  // and the cap and exclude-list assertions below would then pass for the wrong reason.
   const resume = [
-    'E2E Seeker',
+    'E2E Seeker — Senior Backend Engineer, Austin TX',
     'seeker@example.com | +1 512 555 0142',
     '',
     'Summary',
     'Senior Backend Engineer with 9 years of experience.',
+    'Builds and operates production APIs; 9 years building and operating production APIs and',
+    'distributed services on AWS. Deep experience with Node.js and TypeScript, relational',
+    'data modelling in MySQL, and containerised deployment with Docker.',
+    '',
+    'Experience',
+    'Acme Corp — Senior Backend Engineer',
+    '  Owned billing services in Node.js and TypeScript. Designed the MySQL schema, ran',
+    '  migrations, operated services on AWS, and built REST APIs for web and mobile',
+    '  clients. Mentored engineers and led design for distributed systems.',
+    'Globex Inc — Backend Engineer',
+    '  Built the internal reporting API and pipeline. CI/CD, testing, observability.',
     '',
     'Skills',
-    'Node.js, TypeScript, MySQL, Docker',
+    'Node.js, TypeScript, JavaScript, MySQL, Docker, AWS, REST, CI/CD, microservices,',
+    'distributed systems',
   ].join('\n');
 
   const form = new FormData();
@@ -232,8 +266,25 @@ step('upload and parse a resume', async () => {
   assert.equal(res.status, 201, JSON.stringify(res.body));
   state.resumeId = res.body.id;
   assert.equal(res.body.parseStatus, 'parsed', res.body.parseError ?? '');
-  assert.equal(res.body.parsed.yearsExperience, 9);
+  // A range rather than an exact number: the fixture now contains employment date ranges as
+  // well as a stated figure, and pinning this to one value makes any future wording change
+  // look like a parser regression when it is not.
+  assert.ok(
+    typeof res.body.parsed.yearsExperience === 'number' && res.body.parsed.yearsExperience >= 5,
+    `expected a plausible years-of-experience figure, got ${res.body.parsed.yearsExperience}`,
+  );
   assert.ok(res.body.parsed.skills.includes('Node.js'));
+
+  // The matcher scores the prose, not the extracted skill list, so the full text has to be
+  // stored. Without this the whole matching path degrades to "nothing is ever scorable".
+  const stored = await queryOne<RowDataPacket & { len: number }>(
+    "SELECT CHAR_LENGTH(COALESCE(raw_text, '')) AS len FROM resumes WHERE id = ?",
+    [state.resumeId],
+  );
+  assert.ok(
+    Number(stored!.len) > 400,
+    `resume raw_text is ${stored!.len} characters; too short for the matcher to use`,
+  );
 });
 
 step('create a filter targeting linkedin', async () => {
@@ -343,6 +394,7 @@ step('recording an application is bot-confirmed and idempotent', async () => {
       location: 'Austin, TX',
       filterId: state.filterId,
       resumeId: state.resumeId,
+      jobDescription: MATCHING_DESCRIPTION,
     },
   });
   assert.equal(res.status, 201, JSON.stringify(res.body));
@@ -350,7 +402,12 @@ step('recording an application is bot-confirmed and idempotent', async () => {
   // A retrying worker must not double-count.
   const again = await call('POST', `/api/v1/worker/runs/${state.runId}/applications`, {
     worker: true,
-    body: { portalJobId: 'li-1001', jobTitle: 'Senior Backend Engineer', company: 'Initech' },
+    body: {
+      portalJobId: 'li-1001',
+      jobTitle: 'Senior Backend Engineer',
+      company: 'Initech',
+      jobDescription: MATCHING_DESCRIPTION,
+    },
   });
   assert.equal(again.status, 200);
   assert.equal(again.body.duplicate, true);
@@ -385,7 +442,12 @@ step('the daily cap is enforced at the write', async () => {
   for (const id of ['li-1003', 'li-1004']) {
     const res = await call('POST', `/api/v1/worker/runs/${state.runId}/applications`, {
       worker: true,
-      body: { portalJobId: id, jobTitle: 'Backend Engineer', company: `Company ${id}` },
+      body: {
+        portalJobId: id,
+        jobTitle: 'Backend Engineer',
+        company: `Company ${id}`,
+        jobDescription: MATCHING_DESCRIPTION,
+      },
     });
     assert.equal(res.status, 201, `${id}: ${JSON.stringify(res.body)}`);
   }
@@ -393,7 +455,15 @@ step('the daily cap is enforced at the write', async () => {
   // Cap is 3; this is the fourth.
   const over = await call('POST', `/api/v1/worker/runs/${state.runId}/applications`, {
     worker: true,
-    body: { portalJobId: 'li-1005', jobTitle: 'Backend Engineer', company: 'Overflow Inc' },
+    // A genuinely matching posting, so the 409 below is unambiguously the cap and not a
+    // low match score. Without the description this would still be refused, but for the
+    // wrong reason, and the assertion would pass while testing nothing.
+    body: {
+      portalJobId: 'li-1005',
+      jobTitle: 'Backend Engineer',
+      company: 'Overflow Inc',
+      jobDescription: MATCHING_DESCRIPTION,
+    },
   });
   assert.equal(over.status, 409, JSON.stringify(over.body));
   assert.match(over.body.error.message, /daily cap/i);

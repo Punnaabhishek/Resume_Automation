@@ -42,6 +42,17 @@ export interface PortalAdapter {
   search(page: Page, filter: JobFilter, pageIndex: number): Promise<JobCandidate[]>;
 
   /**
+   * The job's full description, from its own page — not the search-result snippet.
+   *
+   * This is what the match score is computed against, so returning an empty string is a
+   * meaningful answer: it scores zero and the job is skipped. That is the correct failure
+   * direction. An adapter that returned placeholder text on a selector miss would silently
+   * turn "we could not read it" into "it looked fine", which is the exact failure the
+   * scoring exists to prevent.
+   */
+  fetchDescription(page: Page, job: JobCandidate): Promise<string>;
+
+  /**
    * Submit one application. Must only resolve `{ ok: true }` when a submission actually
    * went through — the API records that as bot_confirmed and the dashboard reports it as
    * fact, so a hopeful guess here becomes a lie to the end user.

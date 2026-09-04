@@ -89,7 +89,7 @@ step('provision a job seeker with an exclude list and consents', async () => {
     city: 'Austin',
     timezone: 'UTC',
     targetDesignations: ['Senior Backend Engineer'],
-    keySkills: ['Node.js'],
+    keySkills: ['Node.js', 'TypeScript', 'MySQL', 'Redis', 'Docker', 'Kubernetes', 'AWS', 'GraphQL'],
     intakeChannel: 'whatsapp',
     dailyApplicationCap: DAILY_CAP,
     // Zero so the test does not sit through the real inter-application pacing.
@@ -125,15 +125,32 @@ step('store the portal credential in the vault', async () => {
 step('upload a resume', async () => {
   // The API refuses to queue a run for a user with no resume on file, and the adapters
   // need a real path on disk to hand to the portal's file input.
+  // Substantial on purpose. The matcher scores the prose, and refuses to score a document
+  // shorter than 200 characters at all — a three-line stub would score every posting zero
+  // and leave this suite asserting nothing.
   const resume = [
-    'Worker E2E Seeker',
+    'Worker E2E Seeker — Senior Backend Engineer, Austin TX',
     `${seekerEmail} | +1 512 555 0142`,
     '',
     'Summary',
     'Senior Backend Engineer with 9 years of experience.',
+    'Builds and operates production APIs; 9 years building and operating production APIs,',
+    'distributed services and data pipelines on AWS. Deep experience with Node.js and',
+    'TypeScript, relational data modelling in MySQL, containerised deployment with',
+    'Docker and Kubernetes, caching with Redis, and event-driven architecture.',
+    '',
+    'Experience',
+    'Acme Corp — Senior Backend Engineer',
+    '  Owned billing and entitlements services in Node.js and TypeScript. Designed the',
+    '  MySQL schema, ran migrations, operated the services on Kubernetes in AWS, and',
+    '  built REST and GraphQL APIs consumed by web and mobile clients. Mentored engineers',
+    '  and led technical design for distributed systems and microservices.',
+    'Globex Inc — Backend Engineer',
+    '  Built the internal reporting API and its pipeline. Redis caching, CI/CD, testing.',
     '',
     'Skills',
-    'Node.js, TypeScript, MySQL, Docker',
+    'Node.js, TypeScript, JavaScript, MySQL, Redis, Docker, Kubernetes, AWS, REST,',
+    'GraphQL, CI/CD, microservices, distributed systems',
   ].join('\n');
 
   const form = new FormData();
@@ -142,6 +159,12 @@ step('upload a resume', async () => {
 
   const res = await call('POST', `/users/${state.userId}/resumes`, form);
   assert.equal(res.status, 201, JSON.stringify(res.body));
+
+  // If this is ever false the whole matching suite silently degrades into "nothing scored".
+  assert.ok(
+    resume.length > 400,
+    `resume fixture is only ${resume.length} chars; too short to score against`,
+  );
 });
 
 step('create a filter and activate the user', async () => {
@@ -221,13 +244,18 @@ step('the run completes', async () => {
 });
 
 step('the portal received exactly the applications the API recorded', async () => {
-  // Expected from SAMPLE_JOBS under this filter and a cap of 3:
-  //   mock-1 applied
-  //   mock-2 applied
-  //   mock-3 skipped — Blocked Industries is on the exclude list
-  //   mock-4 skipped — "internship" is an excluded keyword
-  //   mock-5 applied   -> cap reached, run stops
-  const expected = ['mock-1', 'mock-2', 'mock-5'];
+  // Expected from SAMPLE_JOBS under this filter, a cap of 3, and a 95 match threshold:
+  //   mock-1 applied  — scores 98
+  //   mock-2 applied  — scores 95, exactly at the bar
+  //   mock-3 skipped  — Blocked Industries is on the exclude list
+  //   mock-4 skipped  — "internship" is an excluded keyword
+  //   mock-5 SKIPPED  — scores 87, below the bar
+  //   mock-6 skipped  — a frontend design role; nowhere near
+  //
+  // Note what the binding constraint is here: the run stopped at 2 because only 2 postings
+  // cleared the bar, not because the cap of 3 was reached. That is the whole point of the
+  // threshold — the cap is a ceiling, never a target to be filled by lowering standards.
+  const expected = ['mock-1', 'mock-2'];
 
   assert.deepEqual(mock!.applied, expected, `mock portal received: ${mock!.applied.join(', ')}`);
 
@@ -255,7 +283,7 @@ step('the portal received exactly the applications the API recorded', async () =
       .map((entry: readonly [string, any]) => [entry[0], entry[1]] as [string, any]),
   );
 
-  for (const id of ['mock-1', 'mock-5']) {
+  for (const id of ['mock-1']) {
     const row = byId.get(id);
     assert.ok(row, `${id} missing from applications`);
     assert.equal(row.status, 'applied', `${id} should still be 'applied'`);
@@ -285,9 +313,22 @@ step('the run is finished with honest counters', async () => {
   assert.ok(run, 'run not found in the runs list');
 
   assert.ok(['succeeded', 'partial'].includes(run.status), `run ended as ${run.status}: ${run.errorMessage ?? ''}`);
-  assert.equal(run.counters.applicationsSubmitted, 3, 'the cap should have stopped the run at 3');
+  assert.equal(
+    run.counters.applicationsSubmitted,
+    2,
+    'only the postings clearing the 95 threshold should have been applied to',
+  );
   assert.ok(run.counters.jobsSeen >= 5, `jobsSeen should cover the first result page, got ${run.counters.jobsSeen}`);
   assert.ok(run.counters.jobsSkippedExcluded >= 1, 'the excluded company should be counted as skipped');
+  assert.ok(run.counters.jobsScored >= 3, `expected postings to be read and scored, got ${run.counters.jobsScored}`);
+  assert.ok(
+    run.counters.jobsBelowThreshold >= 1,
+    'a posting below the bar should be counted, or the threshold is not doing anything',
+  );
+  assert.ok(
+    run.counters.bestScoreMissed > 0 && run.counters.bestScoreMissed < 95,
+    `the closest miss should be recorded and below the bar, got ${run.counters.bestScoreMissed}`,
+  );
   assert.ok(run.finishedAt, 'run must be finished, not left running');
   assert.equal(run.workerId, process.env.WORKER_ID ?? `worker-${process.pid}`);
 });
@@ -329,8 +370,14 @@ step('a second run reuses the stored session instead of logging in again', async
   const raised = (exceptions.body?.data ?? []).filter((e: any) => e.runId === secondRunId);
   assert.equal(raised.length, 0, 'second run logged in again instead of reusing the session');
 
-  assert.ok(mock!.applied.length > before, 'second run applied to nothing');
-  assert.ok(mock!.applied.includes('mock-6'), `expected mock-6 on page 2, got: ${mock!.applied.join(', ')}`);
+  // Deliberately NOT asserting that more applications happened. Everything left in the
+  // sample set is below the bar, so the correct outcome of a second run with more budget is
+  // that it still applies to nothing. Raising the cap must not lower the standard.
+  assert.equal(
+    mock!.applied.length,
+    before,
+    `second run applied to something below the threshold: ${mock!.applied.join(', ')}`,
+  );
 });
 
 step('the fixtures clean up after themselves', async () => {

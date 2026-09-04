@@ -10,6 +10,8 @@ import { clientIp } from '../../middleware/request-context';
 import * as audit from '../audit/audit.service';
 
 interface ApplicationRow extends RowDataPacket {
+  match_score: number | null;
+  match_breakdown: unknown;
   id: string;
   user_id: string;
   full_name: string;
@@ -43,6 +45,13 @@ function present(row: ApplicationRow) {
     statusDetail: row.status_detail,
     lastCheckedAt: row.last_checked_at,
     runId: row.run_id,
+    /**
+     * The resume-to-description score that let this through, and the breakdown behind it.
+     * Stored at the write rather than recomputed, so "why did we apply to this?" stays
+     * answerable after the posting itself is gone.
+     */
+    matchScore: row.match_score,
+    matchBreakdown: row.match_breakdown,
   };
 }
 

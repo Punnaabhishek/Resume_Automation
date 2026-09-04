@@ -115,6 +115,21 @@ export const diceAdapter: PortalAdapter = {
     );
   },
 
+  async fetchDescription(page: Page, job: JobCandidate): Promise<string> {
+    await page.goto(`${BASE}/job-detail/${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
+    await think(1200, 2600);
+
+    const more = page.locator('button:has-text("Show more"), [data-testid="show-more-button"]').first();
+    if (await more.count().catch(() => 0)) {
+      await more.click().catch(() => {});
+      await think(400, 900);
+    }
+
+    const body = page.locator('[data-testid="jobDescriptionHtml"], #jobdescSec, .job-description').first();
+    if (!(await body.count().catch(() => 0))) return '';
+    return (await body.innerText().catch(() => '')) ?? '';
+  },
+
   async apply(page: Page, job: JobCandidate, resumePath: string | null): Promise<ApplyOutcome> {
     await page.goto(`${BASE}/job-detail/${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
     await think(1400, 3000);

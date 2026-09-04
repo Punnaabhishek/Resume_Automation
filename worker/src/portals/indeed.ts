@@ -127,6 +127,17 @@ export const indeedAdapter: PortalAdapter = {
     );
   },
 
+  async fetchDescription(page: Page, job: JobCandidate): Promise<string> {
+    await page.goto(`${BASE}/viewjob?jk=${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
+    await think(1200, 2600);
+
+    if (await isChallenged(page)) return '';
+
+    const body = page.locator('#jobDescriptionText, [data-testid="jobsearch-JobComponent-description"]').first();
+    if (!(await body.count().catch(() => 0))) return '';
+    return (await body.innerText().catch(() => '')) ?? '';
+  },
+
   async apply(page: Page, job: JobCandidate, resumePath: string | null): Promise<ApplyOutcome> {
     await page.goto(`${BASE}/viewjob?jk=${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
     await think(1500, 3200);

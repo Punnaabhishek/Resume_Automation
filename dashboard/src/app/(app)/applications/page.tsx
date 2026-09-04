@@ -13,6 +13,7 @@ import {
   Panel,
   PortalPill,
   SourcePill,
+  MatchScore,
 } from '@/components/ui';
 
 const STATUSES = [
@@ -108,6 +109,7 @@ export default function ApplicationsPage() {
                   <th>Company</th>
                   <th>Job seeker</th>
                   <th>Portal</th>
+                  <th>Match</th>
                   <th>Status</th>
                   <th>Source</th>
                   <th>Applied</th>
@@ -135,6 +137,9 @@ export default function ApplicationsPage() {
                     </td>
                     <td className="tight">
                       <PortalPill portal={row.portal} />
+                    </td>
+                    <td className="tight">
+                      <MatchScore score={row.matchScore} breakdown={row.matchBreakdown} />
                     </td>
                     <td className="tight">
                       <div className="cell-stack">

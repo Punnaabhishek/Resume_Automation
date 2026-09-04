@@ -13,15 +13,40 @@ import { openSession, screenshot, type Session } from './browser.js';
 import { config } from './config.js';
 import { log, setContext, clearContext } from './log.js';
 import { decide, type JobCandidate } from './matching.js';
+import { scoreMatch } from './matching-engine.js';
+
 import { RunClock, pauseBetweenApplications, sleep, think } from './pacing.js';
 import { adapterFor } from './portals/index.js';
 import type { PortalAdapter } from './portals/types.js';
+
+/** JSON columns arrive as either a parsed array or a string, depending on the driver. */
+function asStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((v) => String(v));
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v));
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 interface Counters {
   jobsSeen: number;
   jobsMatched: number;
   jobsSkippedExcluded: number;
   jobsSkippedDuplicate: number;
+  /** Postings actually read and scored against the resume. */
+  jobsScored: number;
+  jobsBelowThreshold: number;
+  /**
+   * The highest score that still missed the bar. Without it, a day that applied to 4 of 200
+   * looks the same as a day that found nothing, and there is no way to tell "the bar is too
+   * high" from "the search returned nothing".
+   */
+  bestScoreMissed: number;
   submitted: number;
 }
 
@@ -94,6 +119,48 @@ async function applyToJob(
   filterId: string,
   counters: Counters,
 ): Promise<'submitted' | 'skipped' | 'capped'> {
+  // --- score the real posting before touching the apply flow ----------------------------
+  // Read the description from the job's own page, not the search snippet. An empty result
+  // scores zero and the job is skipped, which is the correct direction: "we could not read
+  // it" must never become "it looked fine".
+  const description = await adapter.fetchDescription(session.page, job).catch(() => '');
+  const verdict = scoreMatch(
+    {
+      rawText: ctx.resume?.rawText ?? '',
+      skills: asStringArray(ctx.resume?.parsed?.skills ?? ctx.user.key_skills),
+      yearsExperience: ctx.resume?.parsed?.yearsExperience ?? null,
+      targetDesignations: asStringArray(ctx.user.target_designations),
+    },
+    {
+      title: job.jobTitle,
+      company: job.company,
+      location: job.location ?? null,
+      description,
+    },
+  );
+
+  counters.jobsScored += 1;
+
+  if (verdict.score < ctx.matching.threshold) {
+    counters.jobsBelowThreshold += 1;
+    counters.bestScoreMissed = Math.max(counters.bestScoreMissed, verdict.score);
+    log.info('below the match threshold; not applying', {
+      job: job.portalJobId,
+      title: job.jobTitle,
+      score: verdict.score,
+      threshold: ctx.matching.threshold,
+      reason: verdict.unscorable ?? `missing: ${verdict.missingSkills.slice(0, 4).join(', ') || 'none'}`,
+    });
+    return 'skipped';
+  }
+
+  log.info('cleared the match threshold', {
+    job: job.portalJobId,
+    title: job.jobTitle,
+    score: verdict.score,
+    threshold: ctx.matching.threshold,
+  });
+
   const outcome = await adapter.apply(session.page, job, ctx.resume?.absolutePath ?? null);
 
   if (!outcome.ok) {
@@ -109,6 +176,9 @@ async function applyToJob(
     jobUrl: job.jobUrl,
     filterId,
     resumeId: ctx.resume?.id,
+    // Sent so the API can rescore rather than trust us. Capped to the column's limit.
+    jobDescription: description.slice(0, 60_000),
+    matchScore: verdict.score,
   };
 
   try {
@@ -119,7 +189,12 @@ async function applyToJob(
       return 'skipped';
     }
     counters.submitted += 1;
-    log.info('applied', { company: job.company, title: job.jobTitle, applicationId: recorded.id });
+    log.info('applied', {
+      company: job.company,
+      title: job.jobTitle,
+      score: recorded.matchScore,
+      applicationId: recorded.id,
+    });
     return 'submitted';
   } catch (err) {
     if (isConflict(err)) {
@@ -206,6 +281,9 @@ export async function executeRun(runId: string): Promise<void> {
     jobsMatched: 0,
     jobsSkippedExcluded: 0,
     jobsSkippedDuplicate: 0,
+    jobsScored: 0,
+    jobsBelowThreshold: 0,
+    bestScoreMissed: 0,
     submitted: 0,
   };
 
@@ -234,6 +312,7 @@ export async function executeRun(runId: string): Promise<void> {
       budget: ctx.budget.remainingToday,
       excluded: ctx.excludedCompanies.length,
       resume: ctx.resume?.fileName ?? 'none',
+      matchThreshold: ctx.matching.threshold,
     });
 
     const adapter = adapterFor(config.forceAdapter ?? ctx.portal);
@@ -290,6 +369,9 @@ export async function executeRun(runId: string): Promise<void> {
       jobsMatched: counters.jobsMatched,
       jobsSkippedExcluded: counters.jobsSkippedExcluded,
       jobsSkippedDuplicate: counters.jobsSkippedDuplicate,
+      jobsScored: counters.jobsScored,
+      jobsBelowThreshold: counters.jobsBelowThreshold,
+      bestScoreMissed: counters.bestScoreMissed || undefined,
     };
     if (clock.expired) {
       finish.status = 'partial';
@@ -306,6 +388,9 @@ export async function executeRun(runId: string): Promise<void> {
       jobsMatched: counters.jobsMatched,
       jobsSkippedExcluded: counters.jobsSkippedExcluded,
       jobsSkippedDuplicate: counters.jobsSkippedDuplicate,
+      jobsScored: counters.jobsScored,
+      jobsBelowThreshold: counters.jobsBelowThreshold,
+      bestScoreMissed: counters.bestScoreMissed || undefined,
     };
   } finally {
     if (session) await session.close();

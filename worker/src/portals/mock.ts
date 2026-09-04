@@ -65,6 +65,13 @@ export const mockAdapter: PortalAdapter = {
     );
   },
 
+  async fetchDescription(page: Page, job: JobCandidate): Promise<string> {
+    await page.goto(`${config.mockBaseUrl}/job/${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
+    const body = page.locator('.job-description').first();
+    if (!(await body.count().catch(() => 0))) return '';
+    return (await body.innerText().catch(() => '')) ?? '';
+  },
+
   async apply(page: Page, job: JobCandidate): Promise<ApplyOutcome> {
     await page.goto(`${config.mockBaseUrl}/job/${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
 

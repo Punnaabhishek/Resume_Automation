@@ -29,6 +29,8 @@ export interface MockJob {
   company: string;
   location: string;
   snippet: string;
+  /** The full posting. Must be substantial: the matcher scores zero on a stub. */
+  description: string;
 }
 
 const SESSION_COOKIE = 'mockportal_session';
@@ -190,6 +192,7 @@ export function startMockPortal(options: MockOptions): Promise<MockServer> {
           `<h1 class="job-title">${job.title}</h1>
            <div class="job-company">${job.company}</div>
            <div class="job-location">${job.location}</div>
+           <div class="job-description">${job.description}</div>
            ${
              done
                ? '<div class="applied-state">Applied</div>'
@@ -239,10 +242,52 @@ export function startMockPortal(options: MockOptions): Promise<MockServer> {
 }
 
 export const SAMPLE_JOBS: MockJob[] = [
-  { id: 'mock-1', title: 'Senior Backend Engineer', company: 'Northwind Technologies Inc.', location: 'Remote — United States', snippet: 'Node.js TypeScript MySQL' },
-  { id: 'mock-2', title: 'Backend Engineer', company: 'Contoso Corp', location: 'Austin, TX, United States', snippet: 'Node.js distributed systems' },
-  { id: 'mock-3', title: 'Backend Engineer, Payments', company: 'Blocked Industries Inc', location: 'Remote — United States', snippet: 'Node.js payments' },
-  { id: 'mock-4', title: 'Unpaid Backend Internship', company: 'Fabrikam', location: 'Remote — United States', snippet: 'internship node.js' },
-  { id: 'mock-5', title: 'Backend Engineer, Platform', company: 'Tailwind Traders', location: 'Denver, CO, United States', snippet: 'Node.js platform' },
-  { id: 'mock-6', title: 'Staff Backend Engineer', company: 'Adventure Works', location: 'Remote — United States', snippet: 'Node.js architecture' },
+  {
+    id: 'mock-1',
+    title: 'Senior Backend Engineer',
+    company: 'Northwind Technologies Inc.',
+    location: 'Remote — United States',
+    snippet: 'Node.js TypeScript MySQL',
+    description: "We are hiring a Senior Backend Engineer to own our core services platform. You will design, build and operate production APIs serving millions of requests a day. Responsibilities: build and maintain backend services in Node.js and TypeScript; model and evolve data in MySQL with Redis for caching; deploy and operate services with Docker and Kubernetes on AWS; design event-driven flows; build REST and GraphQL APIs for web and mobile clients; mentor engineers and lead technical design for distributed systems. Requirements: 5+ years of professional backend engineering experience, deep knowledge of Node.js, TypeScript and relational databases, production experience with Kubernetes and AWS, strong grounding in microservices. Our stack is Node.js, TypeScript, MySQL, Redis, Docker, Kubernetes and AWS.",
+  },
+  {
+    id: 'mock-2',
+    title: 'Backend Engineer',
+    company: 'Contoso Corp',
+    location: 'Austin, TX, United States',
+    snippet: 'Node.js distributed systems',
+    description: "We are hiring a Senior Backend Engineer to own our core services platform. You will design, build and operate production APIs serving millions of requests a day. Responsibilities: build and maintain backend services in Node.js and TypeScript; model and evolve data in MySQL with Redis for caching; deploy and operate services with Docker and Kubernetes on AWS; design event-driven flows; build REST and GraphQL APIs for web and mobile clients; mentor engineers and lead technical design for distributed systems. Requirements: 5+ years of professional backend engineering experience, deep knowledge of Node.js, TypeScript and relational databases, production experience with Kubernetes and AWS, strong grounding in microservices. We work in Node.js and TypeScript on MySQL, Redis, Docker, Kubernetes and AWS.",
+  },
+  {
+    id: 'mock-3',
+    title: 'Backend Engineer, Payments',
+    company: 'Blocked Industries Inc',
+    location: 'Remote — United States',
+    snippet: 'Node.js payments',
+    description: "We are hiring a Senior Backend Engineer to own our core services platform. You will design, build and operate production APIs serving millions of requests a day. Responsibilities: build and maintain backend services in Node.js and TypeScript; model and evolve data in MySQL with Redis for caching; deploy and operate services with Docker and Kubernetes on AWS; design event-driven flows; build REST and GraphQL APIs for web and mobile clients; mentor engineers and lead technical design for distributed systems. Requirements: 5+ years of professional backend engineering experience, deep knowledge of Node.js, TypeScript and relational databases, production experience with Kubernetes and AWS, strong grounding in microservices. Payments domain, built on Node.js, TypeScript, MySQL, Redis, Docker and AWS.",
+  },
+  {
+    id: 'mock-4',
+    title: 'Unpaid Backend Internship',
+    company: 'Fabrikam',
+    location: 'Remote — United States',
+    snippet: 'internship node.js',
+    description: "A summer internship for students interested in backend engineering fundamentals. You will work with Node.js and TypeScript alongside a mentor, learning how production services are built, tested and deployed with Docker on AWS. We use MySQL and Redis. No prior professional experience is required; this is an entry level position intended for those currently enrolled in a degree programme. You will pair with engineers, review code, and ship small improvements to internal tooling over twelve weeks.",
+  },
+  {
+    id: 'mock-5',
+    title: 'Backend Engineer, Platform',
+    company: 'Tailwind Traders',
+    location: 'Denver, CO, United States',
+    snippet: 'Node.js platform',
+    description: "We are hiring a Senior Backend Engineer to own our core services platform. You will design, build and operate production APIs serving millions of requests a day. Responsibilities: build and maintain backend services in Node.js and TypeScript; model and evolve data in MySQL with Redis for caching; deploy and operate services with Docker and Kubernetes on AWS; design event-driven flows; build REST and GraphQL APIs for web and mobile clients; mentor engineers and lead technical design for distributed systems. Requirements: 5+ years of professional backend engineering experience, deep knowledge of Node.js, TypeScript and relational databases, production experience with Kubernetes and AWS, strong grounding in microservices. Platform team using Node.js, TypeScript, MySQL, Redis, Kubernetes and AWS.",
+  },
+  {
+    id: 'mock-6',
+    title: 'Senior Frontend Designer',
+    company: 'Adventure Works',
+    location: 'Remote — United States',
+    snippet: 'design systems figma',
+    description: "We are looking for a Senior Frontend Designer to own our design system end to end. You will create high-fidelity mockups in Figma, run user research sessions, and partner with product managers on visual direction, brand, typography and motion design. You will define colour palettes, illustration style and accessibility standards across the product. Requirements: 5+ years in product design or visual design, expert with Figma, Sketch and prototyping tools, a portfolio demonstrating strong visual craft and interaction design, and experience running usability studies and synthesising findings.",
+  },
 ];

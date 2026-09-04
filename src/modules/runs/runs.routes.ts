@@ -23,6 +23,9 @@ interface RunRow extends RowDataPacket {
   finished_at: Date | null;
   jobs_seen: number;
   jobs_matched: number;
+  jobs_scored: number;
+  jobs_below_threshold: number;
+  best_score_missed: number | null;
   jobs_skipped_excluded: number;
   jobs_skipped_duplicate: number;
   applications_submitted: number;
@@ -45,6 +48,15 @@ function present(row: RunRow) {
       jobsMatched: row.jobs_matched,
       jobsSkippedExcluded: row.jobs_skipped_excluded,
       jobsSkippedDuplicate: row.jobs_skipped_duplicate,
+      /** Postings actually opened and scored against the resume. */
+      jobsScored: row.jobs_scored,
+      jobsBelowThreshold: row.jobs_below_threshold,
+      /**
+       * The closest a rejected posting came to the bar. This is what separates "the
+       * threshold is too high" from "the search found nothing" — without it, a run that
+       * scored 200 jobs at 94 looks identical to one that found none.
+       */
+      bestScoreMissed: row.best_score_missed,
       applicationsSubmitted: row.applications_submitted,
     },
     errorMessage: row.error_message,

@@ -127,6 +127,23 @@ export const linkedinAdapter: PortalAdapter = {
     );
   },
 
+  async fetchDescription(page: Page, job: JobCandidate): Promise<string> {
+    await page.goto(`${BASE}/jobs/view/${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
+    await think(1200, 2600);
+
+    // "See more" collapses the description by default; without expanding it we would score
+    // against a truncated posting and reject good matches.
+    const more = page.locator('button.jobs-description__footer-button, button[aria-label*="see more" i]').first();
+    if (await more.count().catch(() => 0)) {
+      await more.click().catch(() => {});
+      await think(400, 900);
+    }
+
+    const body = page.locator('.jobs-description__content, .jobs-box__html-content, #job-details').first();
+    if (!(await body.count().catch(() => 0))) return '';
+    return (await body.innerText().catch(() => '')) ?? '';
+  },
+
   async apply(page: Page, job: JobCandidate, resumePath: string | null): Promise<ApplyOutcome> {
     await page.goto(`${BASE}/jobs/view/${job.portalJobId}`, { waitUntil: 'domcontentloaded' });
     await think(1500, 3500);

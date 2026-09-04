@@ -228,6 +228,36 @@ check('no route returns a decrypted portal password to the dashboard', () => {
   assert.ok(/credentials\.reveal/.test(worker), 'the worker route is the one place that decrypts');
 });
 
+/**
+ * The worker carries a verbatim copy of the matcher so it can score before opening an
+ * application, while the API rescores at the write. If they drift, the worker starts opening
+ * applications the API then rejects — which shows up as unexplained 409s in a run log rather
+ * than as an obvious bug. Catch it here instead.
+ */
+check('the worker copy of the matcher has not drifted from the API copy', () => {
+  const apiPath = path.join(process.cwd(), 'src', 'services', 'matching.ts');
+  const workerPath = path.join(process.cwd(), 'worker', 'src', 'matching-engine.ts');
+
+  if (!fs.existsSync(workerPath)) {
+    throw new Error('worker/src/matching-engine.ts is missing');
+  }
+
+  // Compare everything after the leading doc comment: the header differs by design (the
+  // worker's says it is a copy), the code below it must not.
+  const body = (file: string): string => {
+    const text = fs.readFileSync(file, 'utf8').split('\r\n').join('\n');
+    // Drop the leading doc comment, which differs by design; everything after it must match.
+    const end = text.indexOf('*/');
+    return (end === -1 ? text : text.slice(end + 2)).trim();
+  };
+
+  assert.equal(
+    body(workerPath),
+    body(apiPath),
+    'worker/src/matching-engine.ts has drifted from src/services/matching.ts — change both together',
+  );
+});
+
 async function main(): Promise<void> {
   let failed = 0;
   for (const { name, run } of checks) {

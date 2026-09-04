@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { humanize } from '@/lib/format';
 import type {
+  Application,
   ApplicationStatus,
   ExceptionType,
   RunStatus,
@@ -226,5 +227,51 @@ export function Chips({ items }: { items: string[] }) {
         </span>
       ))}
     </div>
+  );
+}
+
+/**
+ * The match score that let an application through, with its reasoning on hover.
+ *
+ * Shown everywhere an application is, because the score is the whole basis on which the
+ * application was sent — a table of applications without it says "we applied to 40 things"
+ * and hides the only question that matters, which is whether they were the right forty.
+ *
+ * A score is deliberately not dressed up as a verdict: it is a number from a text-matching
+ * function, and the tooltip names the components so an operator can see what drove it rather
+ * than trusting it.
+ */
+export function MatchScore({
+  score,
+  breakdown,
+}: {
+  score: number | null;
+  breakdown: Application['matchBreakdown'];
+}) {
+  if (score === null || score === undefined) {
+    return (
+      <Pill tone="neutral" title="Recorded before match scoring existed.">
+        —
+      </Pill>
+    );
+  }
+
+  // Bands describe distance from the bar, not quality in the abstract.
+  const tone: Tone = score >= 97 ? 'ok' : score >= 93 ? 'info' : 'warn';
+
+  const title = breakdown
+    ? [
+        `Threshold ${breakdown.threshold}`,
+        ...breakdown.components.map((c) => `${c.label}: ${Math.round(c.score * 100)}%  (${c.detail})`),
+        breakdown.missingSkills.length
+          ? `Not evidenced: ${breakdown.missingSkills.join(', ')}`
+          : 'Every skill the posting named was evidenced',
+      ].join('\n')
+    : 'No breakdown stored';
+
+  return (
+    <span className={`pill pill-${tone}`} title={title} style={{ fontVariantNumeric: 'tabular-nums' }}>
+      {score}
+    </span>
   );
 }

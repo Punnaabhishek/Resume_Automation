@@ -37,6 +37,8 @@ export interface User {
   servicePlan: string | null;
   intake: { channel: string | null; completedAt: string | null };
   pacing: { dailyApplicationCap: number; minMinutesBetweenApplications: number };
+  /** The resume-to-description bar this person's applications must clear. */
+  minMatchScore?: number;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -67,6 +69,9 @@ export interface Run {
     jobsMatched: number;
     jobsSkippedExcluded: number;
     jobsSkippedDuplicate: number;
+    jobsScored: number;
+    jobsBelowThreshold: number;
+    bestScoreMissed: number | null;
     applicationsSubmitted: number;
   };
   errorMessage: string | null;
@@ -99,6 +104,14 @@ export interface Application {
   statusDetail: string | null;
   lastCheckedAt: string | null;
   runId: string | null;
+  /** Resume-to-description score, 0-100, that let this application through. */
+  matchScore: number | null;
+  matchBreakdown: {
+    threshold: number;
+    components: { key: string; label: string; score: number; weight: number; detail: string }[];
+    matchedSkills: string[];
+    missingSkills: string[];
+  } | null;
 }
 
 export type ExceptionType =

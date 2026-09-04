@@ -141,10 +141,12 @@ resumesRouter.post(
     // Parse inline: it takes well under a second for a résumé and failure is non-fatal, so
     // it is not worth a queue hop. A failed parse leaves the row usable for upload/autofill.
     try {
-      const parsed = await parseResume(file.path, file.mimetype, user.key_skills ?? []);
+      const { fullText, ...parsed } = await parseResume(file.path, file.mimetype, user.key_skills ?? []);
       await execute(
-        `UPDATE resumes SET parse_status = 'parsed', parsed = ?, parsed_at = NOW(3), parse_error = NULL WHERE id = ?`,
-        [JSON.stringify(parsed), id],
+        `UPDATE resumes
+            SET parse_status = 'parsed', parsed = ?, raw_text = ?, parsed_at = NOW(3), parse_error = NULL
+          WHERE id = ?`,
+        [JSON.stringify(parsed), fullText, id],
       );
     } catch (err) {
       await execute(`UPDATE resumes SET parse_status = 'failed', parse_error = ? WHERE id = ?`, [
@@ -200,10 +202,12 @@ resumesRouter.post(
 
     const absolute = path.join(env.storage.root, row.storage_path);
     try {
-      const parsed = await parseResume(absolute, row.mime_type, row.key_skills ?? []);
+      const { fullText, ...parsed } = await parseResume(absolute, row.mime_type, row.key_skills ?? []);
       await execute(
-        `UPDATE resumes SET parse_status = 'parsed', parsed = ?, parsed_at = NOW(3), parse_error = NULL WHERE id = ?`,
-        [JSON.stringify(parsed), row.id],
+        `UPDATE resumes
+            SET parse_status = 'parsed', parsed = ?, raw_text = ?, parsed_at = NOW(3), parse_error = NULL
+          WHERE id = ?`,
+        [JSON.stringify(parsed), fullText, row.id],
       );
       res.json({ parseStatus: 'parsed', parsed });
     } catch (err) {
