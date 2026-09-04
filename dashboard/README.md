@@ -33,7 +33,7 @@ Sign in with an `org_members` account — `ops@example.com` / `ChangeMe123!` aft
 | `/applications` | The record, with confirmed vs scraped kept apart |
 | `/users` | Job seeker records |
 | `/users/new` | **Intake.** Onboard someone end to end without a terminal |
-| `/users/[id]` | Activity · Setup · Reporting for one job seeker |
+| `/users/[id]` | Activity · **Audit** · Setup · Reporting for one job seeker |
 
 An operator never needs a terminal. `/users/new` walks the five stages in the order the API
 enforces them, and `/users/[id]` → Setup covers everything afterwards: rotate a portal
@@ -52,6 +52,36 @@ where it stopped and the rest can be finished from the job seeker's Setup tab.
 Passwords are **write-only** throughout: the field is cleared the moment it is saved, no
 route returns a stored password, and `scripts/intake-ui.mjs` asserts the value never appears
 anywhere in the rendered page.
+
+## The per-user audit
+
+The overview answers *how much are we doing*. The Audit tab answers the question an operator
+actually gets asked by the person paying them: **what did you do for me, and when.**
+
+Activity is grouped by UTC day — UTC because the daily cap resets on `UTC_DATE()`, so
+grouping by anything else shows a day whose count disagrees with the cap that governed it.
+Each day leads with the **roles searched and the companies applied to**, not a count: "3
+applications" tells a job seeker nothing they care about.
+
+A day with zero applications still gets a row, and says why. *"Scored 12 postings; none
+cleared the match bar, closest was 91"* and *"no run happened"* are completely different
+situations that a bare `0` renders identically — and the first is the automation working
+correctly, not a fault.
+
+The overview carries the other half: one row per active job seeker with today's count against
+their own cap, the roles applied for, and the companies.
+
+## Live refresh
+
+The worker records an application the instant it submits one, so the data was always
+immediate — the gap was only the UI. `useApi` takes a `pollMs` option; the job-seeker page
+and the applications list refresh every five seconds and show a **Live** marker.
+
+Polling rather than anything push-based, deliberately: it is a handful of reads on an internal
+tool, it survives a dropped connection with no reconnect logic to get wrong, and it stops
+entirely while the tab is hidden. Two details that matter in use — background ticks skip the
+loading state, so a refreshing table never flickers into skeletons; and a *failed* poll keeps
+the last good data on screen rather than replacing a working table with an error banner.
 
 ## The exception queue
 
@@ -97,6 +127,18 @@ the console disagree with what the API enforces about how many applications are 
 
 ## Conventions
 
+**Roles, skills and excluded companies are combo-boxes, not dropdowns.** See
+[`components/TagSelect.tsx`](src/components/TagSelect.tsx). None of the three is a closed
+set: a job seeker's target role may not be in any list we ship, skills appear faster than a
+taxonomy can be maintained, and the companies someone refuses to apply to are by definition
+specific to them. A dropdown that cannot express the real answer produces a *wrong* record,
+not a tidy one — so each offers suggestions and accepts free text. City works the same way,
+backed by a datalist of the common metros.
+
+**Names are captured in parts.** First / middle / last, because those are the fields portal
+application forms ask for one by one. The API composes `fullName` from them, and recomposes
+it when a part is later edited, so the display name cannot drift from the parts underneath it.
+
 **Response shapes are not guessed.** `lib/types.ts` mirrors the `present()` functions in the
 API's route modules. If a shape here disagrees with the API, the API is right — and two of
 these types were wrong on the first pass precisely because they were guessed rather than
@@ -129,6 +171,16 @@ one point is empty space that says less than the numbers do.
 `observedResponses` is labelled a **floor, never a response rate** — replies a portal never
 displays are invisible to us, so the true figure can only be higher. The smoke test asserts
 that caveat is on screen wherever the number is.
+
+## Match scores on screen
+
+Every table showing an application shows the score that let it through, and the hover text
+names each component and its contribution. That is deliberate: a table of applications without
+it says "we applied to 40 things" and hides the only question that matters, which is whether
+they were the right forty.
+
+The score is presented as a number from a text-matching function, never as a verdict — the
+breakdown is there so an operator can see what drove it rather than trust it.
 
 ## Not built here
 

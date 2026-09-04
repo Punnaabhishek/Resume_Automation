@@ -7,9 +7,9 @@ All three of the spec's services live here:
 
 | | Where | State |
 | --- | --- | --- |
-| API + data layer | [`src/`](src/) | Built. 9 smoke + 24-step e2e against real MySQL. |
+| API + data layer | [`src/`](src/) | Built. 13 smoke + 24-step e2e against real MySQL, plus 9 matcher calibration checks. |
 | Automation worker (Playwright) | [`worker/`](worker/) | Built. 16-step e2e against a local mock portal. Portal selectors unverified against live sites — see [worker/README.md](worker/README.md). |
-| Ops dashboard (Next.js) | [`dashboard/`](dashboard/) | Built, including intake. 12-check smoke + 11-check intake test. See [dashboard/README.md](dashboard/README.md). |
+| Ops dashboard (Next.js) | [`dashboard/`](dashboard/) | Built, including intake and a per-user daily audit. 12-check smoke + 11-check intake test. See [dashboard/README.md](dashboard/README.md). |
 
 Each is a separate npm package on purpose, and the split is a security boundary rather than
 a packaging preference:
@@ -41,6 +41,43 @@ Country and timezone are fixed in the intake form rather than typed, and the int
 overrides whatever an intake file says. The worker is the one place that does *not* use UTC:
 its browser reports a real US zone derived from the job seeker's state, because a browser
 claiming UTC from a residential US IP is exactly the mismatch portal anti-abuse looks for.
+
+## Match scoring
+
+**An application is not sent because a filter matched.** The worker opens each job's own page,
+reads the full description, scores it against the résumé, and only applies if it clears a
+per-user threshold — 95 by default, floored at 90 whatever a user's threshold is set to.
+
+Two rules that pull against each other, and how they resolve:
+
+> **The threshold is a floor. The daily cap is a ceiling.**
+> A day where only 6 postings clear the bar applies to 6, never 35. Filling the cap by
+> lowering the standard would defeat the point of having one.
+
+Because of that, `automation_runs` records `jobs_scored`, `jobs_below_threshold` and
+`best_score_missed`. Without them a day that scored 200 postings at 94 is indistinguishable
+from one that found nothing, and there is no way to tell *the bar is too high* from *the
+search is wrong*.
+
+Three things worth knowing before changing any of it:
+
+- **The score is computed twice on purpose.** The worker scores to decide whether to open an
+  application at all; the API recomputes at the write, beside the daily-cap and exclude-list
+  checks. A worker that scored generously — a bug, a stale build, a selector returning an
+  empty page — cannot get a weak match into the record. The worker's copy of the matcher is
+  verbatim ([`worker/src/matching-engine.ts`](worker/src/matching-engine.ts)) and
+  `npm run smoke` fails if the two drift.
+- **An unreadable description scores zero**, not "assume it is fine". The cost is a missed
+  application, not a wrong one. Otherwise a broken selector degrades silently into applying to
+  everything, which is the exact failure the scoring exists to prevent.
+- **A score is a number from a text-matching function, not a verdict.** It is deterministic
+  and explainable rather than accurate in any deeper sense, so the component breakdown is
+  stored with every application — "why did we apply to this?" stays answerable after the
+  posting is gone. The dashboard shows it on hover.
+
+Calibrate with `npx tsx scripts/match-check.ts`, which asserts relationships rather than exact
+numbers: a strong fit clears 95, a wrong-role posting cannot reach the floor however much
+vocabulary it shares, and an internship cannot pass for a senior role.
 
 ## What this is built around
 
@@ -182,9 +219,22 @@ npm run smoke     # no database needed
 npm run e2e       # needs MySQL up and migrated
 ```
 
-**`scripts/smoke.ts`** — 9 checks, no database. Vault round-trip and tamper detection,
+**`scripts/smoke.ts`** — 13 checks, no database. Vault round-trip and tamper detection,
 company normalization, resume parsing, migration parsing, route mounting and auth
-rejection, plus a static assertion that no dashboard route calls `credentials.reveal`.
+rejection, a static assertion that no dashboard route calls `credentials.reveal`, and a
+guard that the worker's copy of the matcher has not drifted from the API's.
+
+Three of those cover years-of-experience parsing specifically, because it feeds the match
+score and both directions of error cost something: understating drops a strong candidate
+below the bar for jobs they are qualified for, overstating pushes them past "5+ years
+required" bars they do not meet.
+
+**`scripts/match-check.ts`** — 9 calibration checks, no database, run with
+`npx tsx scripts/match-check.ts`. Asserts *relationships*, not exact numbers: a strong fit
+clears 95, a wrong-role posting cannot reach the floor of 90 however much vocabulary it
+shares, an internship cannot pass for a senior role, and an unreadable description scores
+zero rather than sailing through. Exact scores may move as weights are tuned; those
+relationships may not.
 
 **`scripts/e2e.ts`** — 24 steps against real MySQL. Drives intake → consent → provision →
 queue → worker → exception → report over HTTP, asserting the guarantees this README claims:
@@ -195,7 +245,7 @@ the audit log; scraped status does not overwrite the applied fact; and revoking 
 pauses the user and cancels queued runs even against `force`. It creates its own org and
 cleans up after itself.
 
-**`worker/src/mock/e2e.ts`** — 15 steps, run with `cd worker && npm run e2e`. Needs MySQL,
+**`worker/src/mock/e2e.ts`** — 16 steps, run with `cd worker && npm run e2e`. Needs MySQL,
 the API running, and `npm run seed` for the ops login. Drives the real `executeRun()` — the
 same function production uses — against a local mock portal that demands device
 verification at login, then asserts on **both sides of the ledger**: what the portal
@@ -207,6 +257,11 @@ The run it exercises: OTP raised and answered by ops, session persisted, exclude
 respected, daily cap enforced, scraped status recorded as `portal_scrape` while the applied
 fact stays `bot_confirmed`, and a second run reusing the stored session instead of
 triggering a second device check.
+
+It also pins the threshold contract. The sample set is arranged so the run stops at 2 because
+only 2 postings clear the bar — *not* because the cap of 3 was reached — and a second run with
+a raised cap is asserted to apply to **nothing**, since everything left is below the bar.
+Raising the cap must never lower the standard.
 
 **`dashboard/scripts/smoke.mjs`** — 12 checks in a real browser, run with
 `cd dashboard && npm run smoke`. Needs the API and the dashboard both running. Every check
@@ -243,6 +298,16 @@ window, and each suite signs in. Hitting the limit reports `rate_limited`, not a
 | `DEFAULT_MIN_MINUTES_BETWEEN_APPLICATIONS` | Minimum spacing between applications. |
 
 ## Data model
+
+Two migrations. `001_init.sql` is the schema; `002_matching_and_identity.sql` adds match
+scoring (`applications.match_score` and `match_breakdown`, `users.min_match_score`,
+`resumes.raw_text`, and the three new run counters) and structured names
+(`users.first_name/middle_name/last_name`, backfilled from `full_name`).
+
+`resumes.raw_text` holds the whole document while `resumes.parsed` keeps only an excerpt:
+the matcher scores prose — titles, seniority wording and domain vocabulary all live in the
+body — but a multi-page résumé does not belong in a JSON column every dashboard read pulls
+back.
 
 17 tables, in `db/migrations/001_init.sql`.
 
@@ -375,12 +440,15 @@ invisible, and no status change does not mean no decision.
 
 Deliberately out of scope, listed so nothing looks accidentally missing:
 
-- **Write screens in the dashboard.** The console reads filters, resumes, exclude lists,
-  proxies and reports; the API has routes to edit all of them. Creating a job seeker and
-  storing a portal credential stay API-only on purpose — no screen can accept or display a
-  portal password.
+- **Proxy and report screens.** The API has routes for both; the console does not surface
+  them. Everything else an operator needs — intake, credentials, filters, exclude lists,
+  resumes — is in the dashboard, so onboarding no longer requires a terminal.
+- **Editing a profile after intake.** Status and pacing are adjustable from the console, but
+  name, email and location are read-only once created; use the API.
 - **Role-gated dashboard UI.** The API enforces roles, so an analyst gets a 403 and sees the
   error, but the console still renders buttons they cannot use.
+- **Screening-question answering and per-question profiles.** See below — an unanswered
+  required field abandons the application rather than being guessed at.
 - **Verified portal selectors.** The LinkedIn, Indeed and Dice adapters are written to each
   site's published DOM conventions but have never been run against a live logged-in session,
   because doing that needs real accounts and sends real applications to real employers.
