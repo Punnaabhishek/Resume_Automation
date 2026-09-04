@@ -77,7 +77,7 @@ step('provision a job seeker ready to be automated', async () => {
     city: 'Austin',
     timezone: 'UTC',
     targetDesignations: ['Senior Backend Engineer'],
-    keySkills: ['Node.js'],
+    keySkills: ['Node.js', 'TypeScript', 'MySQL', 'Redis', 'Docker', 'Kubernetes', 'AWS', 'GraphQL'],
     intakeChannel: 'whatsapp',
     dailyApplicationCap: 2,
     minMinutesBetweenApplications: 0,
@@ -102,8 +102,31 @@ step('provision a job seeker ready to be automated', async () => {
   });
   assert.equal(connection.status, 201, JSON.stringify(connection.body));
 
+  // Substantial on purpose: the matcher refuses to score a document under 200 characters, so
+  // a one-line stub would score every posting zero and this suite would prove nothing beyond
+  // "the worker started".
+  const resumeText = [
+    'Dashboard E2E Seeker — Senior Backend Engineer, Austin TX',
+    'Summary',
+    'Senior Backend Engineer with 9 years of experience building and operating production',
+    'APIs and distributed services on AWS. Deep experience with Node.js and TypeScript,',
+    'relational data modelling in MySQL, caching with Redis, and containerised deployment',
+    'with Docker and Kubernetes.',
+    '',
+    'Experience',
+    'Acme Corp — Senior Backend Engineer',
+    '  Owned billing and entitlements services in Node.js and TypeScript. Designed the',
+    '  MySQL schema, operated services on Kubernetes in AWS, and built REST and GraphQL',
+    '  APIs for web and mobile clients. Mentored engineers and led design for',
+    '  distributed systems and microservices.',
+    '',
+    'Skills',
+    'Node.js, TypeScript, JavaScript, MySQL, Redis, Docker, Kubernetes, AWS, REST,',
+    'GraphQL, CI/CD, microservices, distributed systems',
+  ].join('\n');
+
   const resume = new FormData();
-  resume.append('resume', new Blob(['Senior Backend Engineer\nNode.js, MySQL'], { type: 'text/plain' }), 'r.txt');
+  resume.append('resume', new Blob([resumeText], { type: 'text/plain' }), 'r.txt');
   resume.append('isPrimary', 'true');
   const uploaded = await call('POST', `/users/${state.userId}/resumes`, resume);
   assert.equal(uploaded.status, 201, JSON.stringify(uploaded.body));

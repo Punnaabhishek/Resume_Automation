@@ -258,6 +258,91 @@ check('the worker copy of the matcher has not drifted from the API copy', () => 
   );
 });
 
+
+/**
+ * Years of experience feeds the match score, and both directions of error cost something:
+ * understating drops a strong candidate below the threshold for jobs they are qualified for,
+ * overstating pushes them past "5+ years required" bars they do not meet. These pin the two
+ * shapes that were previously wrong.
+ */
+check('resume parser reads experience from the phrasings resumes actually use', async () => {
+  const { parseResume } = await import('../src/services/resume-parser');
+
+  const cases: { label: string; text: string; expect: number }[] = [
+    { label: 'classic phrasing', text: 'Senior Engineer with 8 years of experience building APIs.', expect: 8 },
+    { label: 'no "of experience"', text: 'Senior Engineer. 9 years building production APIs at scale.', expect: 9 },
+    { label: 'plus and yrs', text: 'Backend engineer, 7+ yrs of professional experience.', expect: 7 },
+    { label: 'labelled field', text: 'Total experience: 11 years across payments and platform teams.', expect: 11 },
+    { label: 'over N years', text: 'Over 6 years working on distributed systems in production.', expect: 6 },
+    { label: 'as a role', text: '12 years as a backend engineer across fintech and retail.', expect: 12 },
+  ];
+
+  for (const c of cases) {
+    const file = path.join(os.tmpdir(), `smoke-years-${Date.now()}-${Math.random()}.txt`);
+    fs.writeFileSync(file, c.text);
+    try {
+      const parsed = await parseResume(file, 'text/plain', []);
+      assert.equal(parsed.yearsExperience, c.expect, `${c.label}: "${c.text}"`);
+    } finally {
+      fs.unlinkSync(file);
+    }
+  }
+});
+
+check('a resume ending in "present" reports career length, not the last closed job', async () => {
+  const { parseResume } = await import('../src/services/resume-parser');
+  const thisYear = new Date().getFullYear();
+  const startedIn = thisYear - 8;
+  const movedIn = thisYear - 5;
+
+  // No explicit "N years" claim anywhere, so this exercises the date-span fallback. The old
+  // implementation spanned only the written years and reported 3 for an 8-year career.
+  const sample = [
+    'Casey Delgado',
+    'casey@example.com',
+    '',
+    'Experience',
+    `Acme Corp | Senior Backend Engineer | ${movedIn} - present`,
+    '  Owned the billing services.',
+    `Globex Inc | Backend Engineer | ${startedIn} - ${movedIn}`,
+    '  Built the reporting API.',
+  ].join('\n');
+
+  const file = path.join(os.tmpdir(), `smoke-present-${Date.now()}.txt`);
+  fs.writeFileSync(file, sample);
+  try {
+    const parsed = await parseResume(file, 'text/plain', []);
+    assert.equal(
+      parsed.yearsExperience,
+      8,
+      `expected the full span to today, got ${parsed.yearsExperience}`,
+    );
+  } finally {
+    fs.unlinkSync(file);
+  }
+});
+
+check('a skill-specific year count is not mistaken for career length', async () => {
+  const { parseResume } = await import('../src/services/resume-parser');
+  // "3 years of React" is about one technology. Reading it as total experience would drop a
+  // senior candidate below every seniority bar they actually clear.
+  const sample = [
+    'Jordan Ellis — Staff Engineer',
+    'Summary',
+    '14 years of professional experience across backend and platform engineering.',
+    'Skills include 3 years of React and 2 years of Go alongside deep Node.js work.',
+  ].join('\n');
+
+  const file = path.join(os.tmpdir(), `smoke-skillyears-${Date.now()}.txt`);
+  fs.writeFileSync(file, sample);
+  try {
+    const parsed = await parseResume(file, 'text/plain', []);
+    assert.equal(parsed.yearsExperience, 14, 'the career claim must win over a per-skill figure');
+  } finally {
+    fs.unlinkSync(file);
+  }
+});
+
 async function main(): Promise<void> {
   let failed = 0;
   for (const { name, run } of checks) {
