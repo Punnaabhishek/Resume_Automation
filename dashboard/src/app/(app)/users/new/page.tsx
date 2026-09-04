@@ -6,7 +6,17 @@ import { useState } from 'react';
 import { ApiError, api } from '@/lib/api';
 import type { ConsentType, Portal } from '@/lib/types';
 import { ErrorBanner, Panel, Pill } from '@/components/ui';
-import { COMMON_LOCATIONS, COUNTRY, COUNTRY_LABEL, TIMEZONE, US_STATES } from '@/lib/region';
+import {
+  COMMON_LOCATIONS,
+  COMMON_ROLES,
+  COMMON_SKILLS,
+  COUNTRY,
+  COUNTRY_LABEL,
+  TIMEZONE,
+  US_CITIES,
+  US_STATES,
+} from '@/lib/region';
+import { TagSelect } from '@/components/TagSelect';
 
 /**
  * Intake, in order, in one screen.
@@ -63,17 +73,19 @@ export default function NewUserPage() {
   const [done, setDone] = useState<string[]>([]);
 
   // Profile
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   // Country and timezone are platform policy, not per-person settings — see lib/region.ts.
   const [stateRegion, setStateRegion] = useState('');
   const [city, setCity] = useState('');
-  const [designations, setDesignations] = useState('');
-  const [skills, setSkills] = useState('');
+  const [designations, setDesignations] = useState<string[]>([]);
+  const [skills, setSkills] = useState<string[]>([]);
   const [dailyCap, setDailyCap] = useState('15');
   const [minGap, setMinGap] = useState('6');
-  const [excluded, setExcluded] = useState('');
+  const [excluded, setExcluded] = useState<string[]>([]);
   const [notes, setNotes] = useState('');
 
   // Consent evidence
@@ -126,24 +138,26 @@ export default function NewUserPage() {
   const submitProfile = () =>
     run(async () => {
       const user = await api.createUser({
-        fullName: fullName.trim(),
+        firstName: firstName.trim(),
+        middleName: middleName.trim() || undefined,
+        lastName: lastName.trim() || undefined,
         email: email.trim(),
         phone: phone.trim() || undefined,
         country: COUNTRY,
         state: stateRegion || undefined,
         city: city.trim() || undefined,
         timezone: TIMEZONE,
-        targetDesignations: splitList(designations),
-        keySkills: splitList(skills),
+        targetDesignations: designations,
+        keySkills: skills,
         intakeChannel: 'form',
         dailyApplicationCap: Number(dailyCap) || undefined,
         minMinutesBetweenApplications: minGap === '' ? undefined : Number(minGap),
-        excludedCompanies: splitList(excluded).map((companyName) => ({ companyName, reason: 'other' })),
+        excludedCompanies: excluded.map((companyName) => ({ companyName, reason: 'other' })),
         notes: notes.trim() || undefined,
       });
       setUserId(user.id);
       setCredUser(email.trim());
-      setFilterDesignation(splitList(designations)[0] ?? '');
+      setFilterDesignation(designations[0] ?? '');
       markDone(`Profile created for ${user.fullName}`);
       setStage('consent');
     });
@@ -251,8 +265,16 @@ export default function NewUserPage() {
           >
             <div className="dl">
               <label className="field">
-                Full name
-                <input value={fullName} onChange={(e) => setFullName(e.target.value)} required autoFocus />
+                First name
+                <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required autoFocus />
+              </label>
+              <label className="field">
+                Middle name <span>optional</span>
+                <input value={middleName} onChange={(e) => setMiddleName(e.target.value)} />
+              </label>
+              <label className="field">
+                Last name
+                <input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
               </label>
               <label className="field">
                 Email
@@ -282,7 +304,19 @@ export default function NewUserPage() {
               </label>
               <label className="field">
                 City
-                <input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Austin" />
+                {/* A datalist rather than a select: the list is the common metros, but a job
+                    seeker may live anywhere, and a closed list would force a wrong answer. */}
+                <input
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  list="us-cities"
+                  placeholder="Start typing…"
+                />
+                <datalist id="us-cities">
+                  {US_CITIES.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
               </label>
               <label className="field">
                 Timezone
@@ -301,34 +335,31 @@ export default function NewUserPage() {
               </label>
             </div>
 
-            <label className="field">
-              Target roles <span style={{ fontWeight: 400, color: 'var(--muted)' }}>comma separated, at least one</span>
-              <input
-                value={designations}
-                onChange={(e) => setDesignations(e.target.value)}
-                placeholder="Senior Backend Engineer, Backend Engineer"
-                required
-              />
-            </label>
-            <label className="field">
-              Key skills <span style={{ fontWeight: 400, color: 'var(--muted)' }}>comma separated</span>
-              <input
-                value={skills}
-                onChange={(e) => setSkills(e.target.value)}
-                placeholder="Node.js, TypeScript, MySQL"
-              />
-            </label>
-            <label className="field">
-              Companies never to apply to{' '}
-              <span style={{ fontWeight: 400, color: 'var(--muted)' }}>
-                comma separated — current employer usually belongs here
-              </span>
-              <input
-                value={excluded}
-                onChange={(e) => setExcluded(e.target.value)}
-                placeholder="Acme Corp, Globex Inc"
-              />
-            </label>
+            <TagSelect
+              label="Target roles"
+              hint="pick or type — at least one"
+              values={designations}
+              onChange={setDesignations}
+              suggestions={COMMON_ROLES}
+              placeholder="Senior Backend Engineer"
+              required
+            />
+            <TagSelect
+              label="Key skills"
+              hint="pick or type"
+              values={skills}
+              onChange={setSkills}
+              suggestions={COMMON_SKILLS}
+              placeholder="Node.js"
+            />
+            <TagSelect
+              label="Companies never to apply to"
+              hint="their current employer usually belongs here"
+              values={excluded}
+              onChange={setExcluded}
+              suggestions={[]}
+              placeholder="Acme Corp"
+            />
             <label className="field">
               Notes
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -643,7 +674,7 @@ export default function NewUserPage() {
         <Panel title="Ready to automate">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <p className="subtle">
-              {fullName} is active. Queue a run from their page and the worker will pick it up
+              {[firstName, lastName].filter(Boolean).join(' ')} is active. Queue a run from their page and the worker will pick it up
               within about twenty seconds. If the portal asks for a verification code, it will
               appear in the exception queue.
             </p>

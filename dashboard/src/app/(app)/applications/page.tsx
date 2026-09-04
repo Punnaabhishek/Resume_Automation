@@ -32,9 +32,12 @@ export default function ApplicationsPage() {
   const [status, setStatus] = useState('');
   const [portal, setPortal] = useState('');
 
+  // Live: the worker records an application the instant it submits one, so an operator
+  // watching a run should see it land rather than have to guess and hit Refresh.
   const { data, error, loading, reload } = useApi(
     () => api.applications({ status: status || undefined, portal: portal || undefined }),
     [status, portal],
+    { pollMs: 5_000 },
   );
 
   const rows = data ?? [];
@@ -48,9 +51,15 @@ export default function ApplicationsPage() {
             <div className="eyebrow">Record</div>
             <h1>Applications</h1>
           </div>
-          <button className="small" onClick={reload}>
-            Refresh
-          </button>
+          <div className="actions">
+            <span className="live" title="This page re-checks the API every few seconds.">
+              <span className="live-dot" />
+              Live
+            </span>
+            <button className="small" onClick={reload}>
+              Refresh
+            </button>
+          </div>
         </div>
         <p className="subtle">
           <strong>Confirmed</strong> means the worker watched the submission succeed.{' '}

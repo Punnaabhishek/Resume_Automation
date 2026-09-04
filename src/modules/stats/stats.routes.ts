@@ -162,6 +162,118 @@ statsRouter.get(
   }),
 );
 
+
+/**
+ * One job seeker's activity, grouped by the day it happened.
+ *
+ * The org-level rollup answers "how much are we doing"; this answers the question an operator
+ * actually gets asked, which is "what did you do for *me*, and when". Days are UTC because
+ * the daily cap resets on UTC_DATE() — grouping by anything else would show a day whose count
+ * disagrees with the cap that governed it.
+ */
+statsRouter.get(
+  '/users/:userId/daily',
+  asyncHandler(async (req, res) => {
+    const { from, to } = defaultRange(parse(rangeSchema, req.query));
+
+    const user = await queryOne<RowDataPacket>(
+      'SELECT id, full_name, daily_application_cap FROM users WHERE id = ? AND org_id = ?',
+      [param(req, 'userId'), req.member!.orgId],
+    );
+    if (!user) throw notFound('User');
+
+    const rows = await query<RowDataPacket>(
+      `SELECT DATE(a.applied_at) AS day,
+              a.id, a.job_title, a.company, a.portal, a.job_url,
+              a.status, a.status_source, a.match_score, a.applied_at,
+              f.designation
+         FROM applications a
+         LEFT JOIN job_filters f ON f.id = a.filter_id
+        WHERE a.user_id = ? AND a.applied_at BETWEEN ? AND ?
+        ORDER BY a.applied_at DESC`,
+      [user.id, from, to],
+    );
+
+    // Runs are joined in per day so a day with zero applications still explains itself:
+    // "nothing cleared the bar" reads very differently from "we never ran".
+    const runs = await query<RowDataPacket>(
+      `SELECT DATE(COALESCE(finished_at, started_at, created_at)) AS day,
+              COUNT(*) AS runs,
+              SUM(jobs_seen) AS jobs_seen,
+              SUM(jobs_scored) AS jobs_scored,
+              SUM(jobs_below_threshold) AS jobs_below_threshold,
+              MAX(best_score_missed) AS best_score_missed
+         FROM automation_runs
+        WHERE user_id = ? AND COALESCE(finished_at, started_at, created_at) BETWEEN ? AND ?
+        GROUP BY day`,
+      [user.id, from, to],
+    );
+
+    const byDay = new Map<string, any>();
+    const dayKey = (value: unknown): string =>
+      value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+
+    for (const row of rows) {
+      const key = dayKey(row.day);
+      if (!byDay.has(key)) {
+        byDay.set(key, { day: key, applications: [], roles: new Set<string>(), companies: new Set<string>() });
+      }
+      const bucket = byDay.get(key);
+      bucket.applications.push({
+        id: row.id,
+        jobTitle: row.job_title,
+        company: row.company,
+        portal: row.portal,
+        jobUrl: row.job_url,
+        status: row.status,
+        statusSource: row.status_source,
+        matchScore: row.match_score,
+        appliedAt: row.applied_at,
+        // The role searched, which is what was actually applied *for* — distinct from the
+        // job's own title, which is whatever the employer chose to call it.
+        designation: row.designation,
+      });
+      if (row.designation) bucket.roles.add(row.designation);
+      bucket.companies.add(row.company);
+    }
+
+    for (const row of runs) {
+      const key = dayKey(row.day);
+      if (!byDay.has(key)) {
+        byDay.set(key, { day: key, applications: [], roles: new Set<string>(), companies: new Set<string>() });
+      }
+      Object.assign(byDay.get(key), {
+        runs: Number(row.runs),
+        jobsSeen: Number(row.jobs_seen ?? 0),
+        jobsScored: Number(row.jobs_scored ?? 0),
+        jobsBelowThreshold: Number(row.jobs_below_threshold ?? 0),
+        bestScoreMissed: row.best_score_missed === null ? null : Number(row.best_score_missed),
+      });
+    }
+
+    const days = [...byDay.values()]
+      .map((d) => ({
+        ...d,
+        roles: [...d.roles],
+        companies: [...d.companies],
+        applied: d.applications.length,
+        runs: d.runs ?? 0,
+        jobsSeen: d.jobsSeen ?? 0,
+        jobsScored: d.jobsScored ?? 0,
+        jobsBelowThreshold: d.jobsBelowThreshold ?? 0,
+        bestScoreMissed: d.bestScoreMissed ?? null,
+      }))
+      .sort((a, b) => b.day.localeCompare(a.day));
+
+    res.json({
+      user: { id: user.id, fullName: user.full_name, dailyApplicationCap: user.daily_application_cap },
+      range: { from, to },
+      days,
+      confidence: { applied: CONFIDENCE.applied },
+    });
+  }),
+);
+
 /** Applications over time, for the trend chart. */
 statsRouter.get(
   '/trend',

@@ -755,3 +755,126 @@ label.field > span:not(.fixed-value) {
   color: var(--muted);
   font-size: 0.85rem;
 }
+
+/* ============ tag select (roles, skills, excluded companies) ============ */
+
+.tagselect { display: flex; flex-direction: column; gap: 0.45rem; max-width: 46rem; position: relative; }
+.tagselect-label { font-size: 0.9rem; font-weight: 600; color: var(--ink-soft); }
+.tagselect-hint { font-weight: 400; color: var(--muted); font-size: 0.85rem; margin-left: 0.4rem; }
+
+.tagselect-input { display: flex; gap: 0.5rem; align-items: stretch; }
+.tagselect-input input { flex: 1; }
+.tagselect-input button { flex: 0 0 auto; }
+
+.tagselect-suggestions { padding-top: 0.1rem; }
+
+.chip-removable { display: inline-flex; align-items: center; gap: 0.15rem; padding-right: 0.3em; }
+.chip-x {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+  min-height: 0;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.chip-x:hover { background: var(--crit-bg); color: var(--crit); }
+
+/* ============ per-user daily audit ============ */
+
+.audit { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.audit-day {
+  border: 1px solid var(--rule);
+  border-radius: 7px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.audit-day.is-open { border-color: var(--rule-strong); box-shadow: var(--shadow-sm); }
+
+.audit-head {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 12rem 7rem 1fr 1.5rem;
+  gap: 1rem;
+  align-items: center;
+  text-align: left;
+  padding: 0.95rem 1.2rem;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  min-height: 0;
+  cursor: pointer;
+  font-family: var(--ui);
+}
+.audit-head:hover { background: var(--sunken); }
+
+.audit-date { font-weight: 600; font-size: 0.98rem; display: flex; align-items: baseline; gap: 0.4rem; }
+.audit-utc { font-family: var(--mono); font-size: 0.68rem; color: var(--faint); letter-spacing: 0.06em; }
+
+.audit-count { display: flex; flex-direction: column; line-height: 1.15; }
+.audit-count strong {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.audit-of { font-size: 0.76rem; color: var(--muted); }
+
+/* Roles and companies lead, because "3 applications" is not what a job seeker asked. */
+.audit-summary { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.audit-roles { font-weight: 600; font-size: 0.92rem; color: var(--accent); }
+.audit-roles.audit-muted { color: var(--faint); font-weight: 400; }
+.audit-companies {
+  font-size: 0.86rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-chevron { color: var(--faint); font-size: 0.9rem; }
+
+.audit-why {
+  padding: 0.7rem 1.2rem 0.95rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  border-top: 1px solid var(--rule);
+  background: var(--sunken);
+}
+
+.audit-foot {
+  padding: 0.7rem 1.2rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--faint);
+  border-top: 1px solid var(--rule);
+  background: var(--sunken);
+}
+
+/* A quiet "updating" marker for the live-refreshing screens. */
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.live-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--ok);
+  animation: livepulse 2s ease-in-out infinite;
+}
+@keyframes livepulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+@media (max-width: 60rem) {
+  .audit-head { grid-template-columns: 1fr auto; row-gap: 0.5rem; }
+  .audit-summary { grid-column: 1 / -1; }
+}

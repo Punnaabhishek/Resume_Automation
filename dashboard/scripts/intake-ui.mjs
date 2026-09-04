@@ -28,7 +28,10 @@ const OPS_EMAIL = process.env.E2E_OPS_EMAIL ?? 'ops@example.com';
 const OPS_PASSWORD = process.env.E2E_OPS_PASSWORD ?? 'ChangeMe123!';
 
 const stamp = Date.now();
-const seekerName = `UI Intake ${stamp}`;
+const firstName = 'Casey';
+const middleName = 'Alex';
+const lastName = `Intake${stamp}`;
+const seekerName = `${firstName} ${middleName} ${lastName}`;
 const seekerEmail = `ui-intake-${stamp}@example.com`;
 const PORTAL_PASSWORD = 'ui-intake-p@ss-9931';
 
@@ -112,15 +115,43 @@ check('sign in and open the intake wizard', async () => {
 check('stage 1 saves the profile', async () => {
   await fillHydrated(
     [
-      ['.field:has-text("Full name") input', seekerName],
+      ['.field:has-text("First name") input', firstName],
+      ['.field:has-text("Middle name") input', middleName],
+      ['.field:has-text("Last name") input', lastName],
       ['.field:has-text("Email") input', seekerEmail],
       ['.field:has-text("Phone") input', '+1 512 555 0142'],
-      ['.field:has-text("City") input', 'Austin'],
-      ['.field:has-text("Target roles") input', 'Senior Backend Engineer, Backend Engineer'],
-      ['.field:has-text("Key skills") input', 'Node.js, TypeScript, MySQL'],
-      ['.field:has-text("Companies never to apply to") input', 'Blocked Industries Inc'],
+      ['.field:has-text("City") input', 'Austin, TX'],
     ],
     'button:has-text("Save and continue"):not([disabled])',
+  );
+
+  // Roles, skills and excluded companies are combo-boxes now: type a value, commit it, and it
+  // becomes a chip. Enter commits, which is the path an operator actually uses.
+  const addTags = async (label, values) => {
+    const field = page.locator('.tagselect', { hasText: label }).first();
+    for (const value of values) {
+      await field.locator('input[type="text"]').fill(value);
+      await field.locator('input[type="text"]').press('Enter');
+    }
+    const chips = await field.locator('.chip-removable').allTextContents();
+    for (const value of values) {
+      assert.ok(
+        chips.some((c) => c.replace('×', '').trim() === value),
+        `"${value}" did not become a chip under ${label}: ${chips.join(' | ')}`,
+      );
+    }
+  };
+
+  await addTags('Target roles', ['Senior Backend Engineer', 'Backend Engineer']);
+  await addTags('Key skills', ['Node.js', 'TypeScript', 'MySQL']);
+  await addTags('Companies never to apply to', ['Blocked Industries Inc']);
+
+  // The name is captured in parts now, not as one string. Confirm the old single field is
+  // genuinely gone rather than merely relabelled.
+  assert.equal(
+    await page.locator('.field:has-text("Full name") input').count(),
+    0,
+    'the single full-name field should have been replaced by first/middle/last',
   );
 
   // State is a dropdown now that the platform is US-only, so it is selected, not typed.

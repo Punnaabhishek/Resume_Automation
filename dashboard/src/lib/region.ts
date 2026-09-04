@@ -84,3 +84,49 @@ export const COMMON_LOCATIONS = [
   'Atlanta, GA',
   'Los Angeles, CA',
 ];
+
+/**
+ * Suggestion lists for the intake combo-boxes.
+ *
+ * These are starting points, not closed sets — every field they back also accepts free text.
+ * A dropdown that cannot express a real answer produces a wrong record, not a tidy one, so
+ * none of these is enforced.
+ */
+export const US_CITIES = [
+  'Remote',
+  'Atlanta, GA', 'Austin, TX', 'Baltimore, MD', 'Boston, MA', 'Charlotte, NC',
+  'Chicago, IL', 'Cincinnati, OH', 'Cleveland, OH', 'Columbus, OH', 'Dallas, TX',
+  'Denver, CO', 'Detroit, MI', 'Houston, TX', 'Indianapolis, IN', 'Jacksonville, FL',
+  'Kansas City, MO', 'Las Vegas, NV', 'Los Angeles, CA', 'Miami, FL', 'Milwaukee, WI',
+  'Minneapolis, MN', 'Nashville, TN', 'New York, NY', 'Orlando, FL', 'Philadelphia, PA',
+  'Phoenix, AZ', 'Pittsburgh, PA', 'Portland, OR', 'Raleigh, NC', 'Sacramento, CA',
+  'Salt Lake City, UT', 'San Antonio, TX', 'San Diego, CA', 'San Francisco, CA',
+  'San Jose, CA', 'Seattle, WA', 'St. Louis, MO', 'Tampa, FL', 'Washington, DC',
+];
+
+export const COMMON_ROLES = [
+  'Backend Engineer', 'Senior Backend Engineer', 'Staff Backend Engineer',
+  'Frontend Engineer', 'Senior Frontend Engineer',
+  'Full Stack Engineer', 'Senior Full Stack Engineer',
+  'Software Engineer', 'Senior Software Engineer', 'Staff Software Engineer',
+  'Platform Engineer', 'Site Reliability Engineer', 'DevOps Engineer',
+  'Cloud Engineer', 'Infrastructure Engineer',
+  'Data Engineer', 'Senior Data Engineer', 'Analytics Engineer',
+  'Data Scientist', 'Machine Learning Engineer',
+  'Mobile Engineer', 'iOS Engineer', 'Android Engineer',
+  'QA Engineer', 'Automation Engineer',
+  'Security Engineer', 'Solutions Architect', 'Engineering Manager',
+  'Product Manager', 'Technical Program Manager', 'Business Analyst',
+];
+
+export const COMMON_SKILLS = [
+  'JavaScript', 'TypeScript', 'Node.js', 'React', 'Next.js', 'Angular', 'Vue',
+  'Python', 'Django', 'FastAPI', 'Java', 'Spring Boot', 'Go', 'Rust', 'C#', '.NET',
+  'Ruby', 'Rails', 'PHP', 'Laravel',
+  'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch', 'DynamoDB',
+  'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'Terraform', 'Jenkins', 'GitHub Actions',
+  'REST', 'GraphQL', 'gRPC', 'Kafka', 'RabbitMQ',
+  'CI/CD', 'Microservices', 'Distributed Systems', 'System Design',
+  'Spark', 'Airflow', 'dbt', 'Snowflake', 'Tableau', 'Power BI',
+  'Playwright', 'Cypress', 'Selenium', 'Jest',
+];

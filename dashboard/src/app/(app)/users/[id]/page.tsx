@@ -24,6 +24,7 @@ import {
   MatchScore,
 } from '@/components/ui';
 import { BreakdownBars, TrendChart } from '@/components/TrendChart';
+import { DailyAuditView } from '@/components/DailyAudit';
 import {
   ConsentPanel,
   CredentialPanel,
@@ -56,7 +57,18 @@ const NEXT_STATUS: Record<UserStatus, { to: UserStatus; label: string; destructi
   offboarded: [],
 };
 
-type Tab = 'activity' | 'setup' | 'reporting';
+type Tab = 'activity' | 'audit' | 'setup' | 'reporting';
+
+/**
+ * How often the screens that change on their own re-check the API.
+ *
+ * Five seconds because the worker records an application the instant it submits one, and an
+ * operator watching a run should see it appear rather than wonder whether anything happened.
+ * Polling is deliberate over anything push-based: it is a handful of reads on an internal
+ * tool, it survives a dropped connection with no reconnect logic, and it stops entirely when
+ * the tab is hidden.
+ */
+const LIVE_POLL_MS = 5_000;
 
 export default function UserDetailPage() {
   const params = useParams<{ id: string }>();
@@ -64,8 +76,9 @@ export default function UserDetailPage() {
   const [tab, setTab] = useState<Tab>('activity');
 
   const user = useApi(() => api.user(id), [id]);
-  const runs = useApi(() => api.runs({ userId: id }), [id]);
-  const applications = useApi(() => api.applications({ userId: id }), [id]);
+  const runs = useApi(() => api.runs({ userId: id }), [id], { pollMs: LIVE_POLL_MS });
+  const applications = useApi(() => api.applications({ userId: id }), [id], { pollMs: LIVE_POLL_MS });
+  const audit = useApi(() => api.dailyAudit(id), [id], { pollMs: LIVE_POLL_MS });
   const resumes = useApi(() => api.resumes(id), [id]);
   const stats = useApi(() => api.userStats(id), [id]);
   const trend = useApi(() => api.trend({ userId: id, interval: 'day' }), [id]);
@@ -132,6 +145,10 @@ export default function UserDetailPage() {
             <h1>{u.fullName}</h1>
           </div>
           <div className="actions">
+            <span className="live" title="This page re-checks the API every few seconds.">
+              <span className="live-dot" />
+              Live
+            </span>
             <UserStatusPill status={u.status} />
             {NEXT_STATUS[u.status]?.map((option) => (
               <button
@@ -159,7 +176,7 @@ export default function UserDetailPage() {
       </div>
 
       <div className="actions">
-        {(['activity', 'setup', 'reporting'] as Tab[]).map((t) => (
+        {(['activity', 'audit', 'setup', 'reporting'] as Tab[]).map((t) => (
           <button key={t} className={tab === t ? 'primary small' : 'small'} onClick={() => setTab(t)}>
             {humanize(t)}
           </button>
@@ -357,11 +374,33 @@ export default function UserDetailPage() {
         </>
       )}
 
+      {/* ================= AUDIT ================= */}
+      {tab === 'audit' && (
+        <>
+          <p className="subtle">
+            What was applied for, for whom, and on which day — the answer to &ldquo;what did you
+            do for me this week&rdquo;. Days are UTC, matching the clock the daily cap resets on.
+          </p>
+          {audit.loading ? (
+            <Panel flush>
+              <Loading rows={4} />
+            </Panel>
+          ) : audit.error ? (
+            <ErrorBanner error={audit.error} onRetry={audit.reload} />
+          ) : audit.data ? (
+            <DailyAuditView data={audit.data} />
+          ) : null}
+        </>
+      )}
+
       {/* ================= SETUP ================= */}
       {tab === 'setup' && (
         <>
           <Panel title="Profile">
             <div className="dl">
+              <Field label="First name" value={u.firstName ?? '—'} />
+              <Field label="Middle name" value={u.middleName ?? '—'} />
+              <Field label="Last name" value={u.lastName ?? '—'} />
               <Field label="Email" value={u.email} />
               <Field label="Phone" value={u.phone ?? '—'} />
               <Field
@@ -371,6 +410,10 @@ export default function UserDetailPage() {
               <Field label="Timezone" value={u.location.timezone ?? '—'} />
               <Field label="Daily cap" value={`${u.pacing.dailyApplicationCap} applications`} />
               <Field label="Minimum gap" value={`${u.pacing.minMinutesBetweenApplications} minutes`} />
+              <Field
+                label="Match threshold"
+                value={u.minMatchScore ? `${u.minMatchScore} / 100` : '—'}
+              />
               <Field label="Intake channel" value={humanize(u.intake.channel)} />
               <Field label="Target roles" value={<Chips items={asArray(u.targetDesignations)} />} />
               <Field label="Key skills" value={<Chips items={asArray(u.keySkills)} />} />

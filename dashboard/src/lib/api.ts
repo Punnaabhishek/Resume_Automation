@@ -11,6 +11,7 @@ import type {
   Application,
   Connection,
   ConsentType,
+  DailyAudit,
   CreateUserInput,
   Eligibility,
   JobFilterInput,
@@ -230,6 +231,10 @@ export const api = {
 
   async userStats(userId: string): Promise<UserStats> {
     return request<UserStats>('GET', `/stats/users/${userId}`);
+  },
+
+  async dailyAudit(userId: string): Promise<DailyAudit> {
+    return request<DailyAudit>('GET', `/stats/users/${userId}/daily`);
   },
 
   async trend(params: { userId?: string; interval?: 'day' | 'week' } = {}): Promise<Trend> {

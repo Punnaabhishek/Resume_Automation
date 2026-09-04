@@ -19,6 +19,10 @@ interface UserRow extends RowDataPacket {
   id: string;
   org_id: string;
   full_name: string;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  min_match_score: number;
   email: string;
   phone: string | null;
   country: string;
@@ -38,8 +42,16 @@ interface UserRow extends RowDataPacket {
   updated_at: Date;
 }
 
-const createUserSchema = z.object({
-  fullName: z.string().min(1).max(200),
+const userFieldsSchema = z.object({
+  /**
+   * Structured name. fullName stays the display value everything else reads; the parts are
+   * what portal application forms actually ask for, field by field, so they are captured
+   * separately at intake rather than guessed at by splitting a single string later.
+   */
+  firstName: z.string().min(1).max(80).optional(),
+  middleName: z.string().max(80).optional(),
+  lastName: z.string().max(80).optional(),
+  fullName: z.string().min(1).max(200).optional(),
   email: z.string().email(),
   phone: z.string().max(40).optional(),
   country: z.string().length(2).transform((s) => s.toUpperCase()),
@@ -63,14 +75,36 @@ const createUserSchema = z.object({
   notes: z.string().optional(),
 });
 
-const updateUserSchema = createUserSchema.partial().omit({ excludedCompanies: true }).extend({
+/**
+ * Create accepts either a composed fullName or the parts, and fills in whichever is missing.
+ * Both schemas derive from the plain object above rather than from each other: `.refine()`
+ * returns a ZodEffects, which has no `.partial()`, so chaining update off create silently
+ * stops compiling the moment create gains a refinement.
+ */
+const createUserSchema = userFieldsSchema
+  .refine((v) => Boolean(v.fullName?.trim() || v.firstName?.trim()), {
+    message: 'Provide either fullName or firstName',
+    path: ['fullName'],
+  })
+  .transform((v) => ({
+    ...v,
+    fullName:
+      v.fullName?.trim() ||
+      [v.firstName, v.middleName, v.lastName].map((p) => p?.trim()).filter(Boolean).join(' '),
+  }));
+
+const updateUserSchema = userFieldsSchema.partial().omit({ excludedCompanies: true }).extend({
   status: z.enum(['intake', 'active', 'paused', 'suspended', 'offboarded']).optional(),
+  minMatchScore: z.number().int().min(90).max(100).optional(),
 });
 
 function present(row: UserRow) {
   return {
     id: row.id,
     fullName: row.full_name,
+    firstName: row.first_name,
+    middleName: row.middle_name,
+    lastName: row.last_name,
     email: row.email,
     phone: row.phone,
     location: { country: row.country, state: row.state, city: row.city, timezone: row.timezone },
@@ -83,6 +117,8 @@ function present(row: UserRow) {
       dailyApplicationCap: row.daily_application_cap,
       minMinutesBetweenApplications: row.min_minutes_between_applications,
     },
+    /** The resume-to-description bar this person's applications must clear. */
+    minMatchScore: row.min_match_score,
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -141,12 +177,17 @@ usersRouter.post(
     await withTransaction(async (tx) => {
       await tx.execute(
         `INSERT INTO users
-           (id, org_id, full_name, email, phone, country, state, city, timezone,
+           (id, org_id, full_name, first_name, middle_name, last_name, email, phone,
+            country, state, city, timezone,
             target_designations, key_skills, service_plan, intake_channel,
             daily_application_cap, min_minutes_between_applications, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          id, orgId, input.fullName, input.email.toLowerCase(), input.phone ?? null,
+          id, orgId, input.fullName,
+          input.firstName?.trim() || null,
+          input.middleName?.trim() || null,
+          input.lastName?.trim() || null,
+          input.email.toLowerCase(), input.phone ?? null,
           input.country, input.state ?? null, input.city ?? null, input.timezone,
           JSON.stringify(input.targetDesignations), JSON.stringify(input.keySkills),
           input.servicePlan ?? null, input.intakeChannel ?? null,
@@ -222,14 +263,36 @@ usersRouter.patch(
   requireRole('owner', 'admin', 'ops'),
   asyncHandler(async (req, res) => {
     const input = parse(updateUserSchema, req.body);
-    const existing = await queryOne<UserRow>('SELECT id FROM users WHERE id = ? AND org_id = ?', [
-      param(req, 'id'),
-      req.member!.orgId,
-    ]);
+    const existing = await queryOne<UserRow>(
+      'SELECT id, first_name, middle_name, last_name FROM users WHERE id = ? AND org_id = ?',
+      [
+        param(req, 'id'),
+        req.member!.orgId,
+      ],
+    );
     if (!existing) throw notFound('User');
 
+    // A name-part edit must also refresh full_name, or the display name silently drifts from
+    // the parts underneath it.
+    const nameParts = [input.firstName, input.middleName, input.lastName];
+    const touchedName = nameParts.some((p) => p !== undefined);
+    const composed = touchedName
+      ? [
+          input.firstName ?? existing.first_name,
+          input.middleName ?? existing.middle_name,
+          input.lastName ?? existing.last_name,
+        ]
+          .map((p) => p?.trim())
+          .filter(Boolean)
+          .join(' ')
+      : undefined;
+
     const columns: Record<string, unknown> = {
-      full_name: input.fullName,
+      full_name: input.fullName ?? (composed || undefined),
+      first_name: input.firstName,
+      middle_name: input.middleName,
+      last_name: input.lastName,
+      min_match_score: input.minMatchScore,
       email: input.email?.toLowerCase(),
       phone: input.phone,
       country: input.country,

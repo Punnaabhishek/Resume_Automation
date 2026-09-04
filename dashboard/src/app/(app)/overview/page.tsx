@@ -24,6 +24,10 @@ export default function OverviewPage() {
   const runs = useApi(() => api.runs(), []);
   const exceptions = useApi(() => api.exceptions({ status: 'active' }), []);
   const trend = useApi(() => api.trend({ interval }), [interval]);
+  // Per-user rows: the org rollup above answers "how much are we doing", these answer
+  // "for whom" — which is the question that actually gets asked.
+  const users = useApi(() => api.users({ status: 'active' }), []);
+  const allApplications = useApi(() => api.applications(), [], { pollMs: 10_000 });
 
   const stats = overview.data;
   const recentRuns = (runs.data ?? []).slice(0, 8);
@@ -148,6 +152,74 @@ export default function OverviewPage() {
           </div>
         </>
       )}
+
+      <section className="block">
+        <div className="panel-head" style={{ border: 'none', padding: 0 }}>
+          <h2>Today, per job seeker</h2>
+          <Link href="/users" className="btn small">
+            All job seekers
+          </Link>
+        </div>
+        <Panel flush>
+          {users.loading || allApplications.loading ? (
+            <Loading rows={3} />
+          ) : (users.data ?? []).length === 0 ? (
+            <Empty title="No active job seekers" note="Onboard someone to see their activity here." />
+          ) : (
+            <div className="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Job seeker</th>
+                    <th className="num">Today</th>
+                    <th className="num">Cap</th>
+                    <th>Roles applied for today</th>
+                    <th>Companies</th>
+                    <th className="num">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(users.data ?? []).map((user) => {
+                    const mine = (allApplications.data ?? []).filter((a) => a.user.id === user.id);
+                    // UTC day, matching the clock the daily cap actually resets on.
+                    const todayKey = new Date().toISOString().slice(0, 10);
+                    const today = mine.filter((a) => String(a.appliedAt).slice(0, 10) === todayKey);
+                    const roles = [...new Set(today.map((a) => a.jobTitle))];
+                    const companies = [...new Set(today.map((a) => a.company))];
+                    const atCap = today.length >= user.pacing.dailyApplicationCap;
+
+                    return (
+                      <tr key={user.id} className={atCap ? 'stripe stripe-ok' : 'stripe'}>
+                        <td className="primary">
+                          <Link href={`/users/${user.id}`}>{user.fullName}</Link>
+                        </td>
+                        <td className="num">{today.length}</td>
+                        <td className="num">{user.pacing.dailyApplicationCap}</td>
+                        <td>
+                          {roles.length ? (
+                            roles.slice(0, 3).join(' · ') + (roles.length > 3 ? ` +${roles.length - 3}` : '')
+                          ) : (
+                            <span style={{ color: 'var(--faint)' }}>Nothing yet today</span>
+                          )}
+                        </td>
+                        <td>
+                          {companies.length ? (
+                            companies.slice(0, 3).join(', ') +
+                            (companies.length > 3 ? ` +${companies.length - 3}` : '')
+                          ) : (
+                            <span style={{ color: 'var(--faint)' }}>—</span>
+                          )}
+                        </td>
+                        <td className="num">{mine.length}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      </section>
 
       <section className="block">
         <div className="panel-head" style={{ border: 'none', padding: 0 }}>

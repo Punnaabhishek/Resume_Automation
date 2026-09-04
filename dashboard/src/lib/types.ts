@@ -28,6 +28,9 @@ export type UserStatus = 'intake' | 'active' | 'paused' | 'suspended' | 'offboar
 export interface User {
   id: string;
   fullName: string;
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
   email: string;
   phone: string | null;
   location: { country: string | null; state: string | null; city: string | null; timezone: string | null };
@@ -251,7 +254,11 @@ export interface JobFilterInput {
 }
 
 export interface CreateUserInput {
-  fullName: string;
+  /** Either the parts or a composed fullName; the API fills in whichever is missing. */
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  fullName?: string;
   email: string;
   phone?: string;
   country: string;
@@ -290,4 +297,34 @@ export interface Trend {
   range: { from: string; to: string };
   interval: 'day' | 'week';
   series: { bucket: string; portal: string; count: number }[];
+}
+
+/** One UTC day of a single job seeker's activity — the per-user audit view. */
+export interface DailyAudit {
+  user: { id: string; fullName: string; dailyApplicationCap: number };
+  range: { from: string; to: string };
+  days: {
+    day: string;
+    applied: number;
+    roles: string[];
+    companies: string[];
+    runs: number;
+    jobsSeen: number;
+    jobsScored: number;
+    jobsBelowThreshold: number;
+    bestScoreMissed: number | null;
+    applications: {
+      id: string;
+      jobTitle: string;
+      company: string;
+      portal: Portal;
+      jobUrl: string | null;
+      status: ApplicationStatus;
+      statusSource: StatusSource;
+      matchScore: number | null;
+      appliedAt: string;
+      /** The role searched, distinct from whatever the employer titled the posting. */
+      designation: string | null;
+    }[];
+  }[];
 }
